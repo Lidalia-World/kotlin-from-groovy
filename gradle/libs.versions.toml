@@ -14,7 +14,7 @@ semver4j = { module = "com.github.gundy:semver4j", version = "0.16.4" }
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 dependencyAnalysis = { id = "com.autonomousapps.dependency-analysis", version = "1.32.0" }
-kotlinter = { id = "org.jmailen.kotlinter", version = "4.3.0" }
+kotlinter = { id = "org.jmailen.kotlinter", version = "4.4.0" }
 taskTree = { id = "com.dorongold.task-tree", version = "4.0.0" }
 versions = { id = "com.github.ben-manes.versions", version = "0.51.0" }
 duplicateClasses = { id = "net.idlestate.gradle-duplicate-classes-check", version = "1.2.0" }
