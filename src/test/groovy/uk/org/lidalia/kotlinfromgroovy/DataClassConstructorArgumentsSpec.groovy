@@ -82,7 +82,6 @@ class DataClassConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct a data class with named argument and subsequent positional arguments'() {
 
         when:
@@ -123,17 +122,17 @@ class DataClassConstructorArgumentsSpec extends Specification {
             exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
-    def 'cannot construct a data class with positional and named arguments in wrong order 2'() {
+    def 'can construct a data class with positional and named arguments targeting same parameter'() {
 
         when:
-            new DataClassWithDefaultValues(
+            def instance = new DataClassWithDefaultValues(
                 "different argument1",
                 argument1: "different argument1",
             )
 
         then:
-            def exception = thrown(IllegalArgumentException)
-            exception.message == 'An argument is already passed for this parameter'
+            assert (instance.argument1 == "different argument1")
+            assert (instance.argument2 == "different argument1")
     }
 
     def 'cannot construct a data class with an incorrect argument'() {

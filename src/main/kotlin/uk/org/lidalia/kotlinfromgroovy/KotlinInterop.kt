@@ -130,28 +130,20 @@ private fun resolveArgs(
   val paramMap = mutableMapOf<KParameter, Any?>()
   val assignedParams = mutableSetOf<KParameter>()
 
-  // Validate named arg names
-  for (name in namedArgs.keys) {
+  // Assign named args first
+  for ((name, value) in namedArgs) {
     val param = params.find { it.name == name }
       ?: throw IllegalArgumentException("Cannot find a parameter with this name: $name")
-  }
-
-  // Assign positional args first (they fill params left-to-right)
-  for ((index, value) in positionalArgs.withIndex()) {
-    if (index >= params.size) {
-      throw IllegalArgumentException("Too many arguments")
-    }
-    val param = params[index]
     paramMap[param] = value
     assignedParams += param
   }
 
-  // Assign named args
-  for ((name, value) in namedArgs) {
-    val param = params.find { it.name == name }!!
-    if (param in assignedParams) {
-      throw IllegalArgumentException("An argument is already passed for this parameter")
-    }
+  // Assign positional args to remaining unassigned params left-to-right
+  val unassignedParams = params.filter { it !in assignedParams }
+  if (positionalArgs.size > unassignedParams.size) {
+    throw IllegalArgumentException("Too many arguments")
+  }
+  for ((param, value) in unassignedParams.zip(positionalArgs.toList())) {
     paramMap[param] = value
     assignedParams += param
   }

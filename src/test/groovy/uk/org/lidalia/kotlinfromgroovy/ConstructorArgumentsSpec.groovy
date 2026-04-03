@@ -83,7 +83,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with named argument and subsequent positional arguments'() {
 
         when:
@@ -125,18 +124,17 @@ class ConstructorArgumentsSpec extends Specification {
             exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
-    def 'cannot construct an instance with positional and named arguments in wrong order 2'() {
+    def 'can construct an instance with positional and named arguments targeting same parameter'() {
 
         when:
-            new ClassWithDefaultProperties(
+            def instance = new ClassWithDefaultProperties(
                 "different argument1",
                 argument1: "different argument1",
             )
 
-
         then:
-            def exception = thrown(IllegalArgumentException)
-            exception.message == 'An argument is already passed for this parameter'
+            assert (instance.argument1 == "different argument1")
+            assert (instance.argument2 == "different argument1")
     }
 
     def 'cannot construct an instance with an incorrect argument'() {
