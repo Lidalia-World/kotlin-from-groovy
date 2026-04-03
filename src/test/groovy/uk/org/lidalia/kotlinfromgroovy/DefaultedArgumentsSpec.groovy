@@ -269,7 +269,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'can call functionWithTwoArgumentsBothDefaulted with 1 positional arg'() {
 
         when:
