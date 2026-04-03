@@ -105,7 +105,12 @@ internal fun resolveKotlinMethodCall(
   namedFirst: Boolean = false,
 ): Any? {
   val kClass = target::class
-  val functions = kClass.memberFunctions.filter { it.name == methodName }
+  val functions = try {
+    kClass.memberFunctions.filter { it.name == methodName }
+  } catch (_: Exception) {
+    // kotlin-reflect can fail on some Java classes (e.g. LinkedHashSet.clone visibility)
+    emptyList()
+  }
 
   if (functions.isEmpty()) {
     throw MissingMethodException(
