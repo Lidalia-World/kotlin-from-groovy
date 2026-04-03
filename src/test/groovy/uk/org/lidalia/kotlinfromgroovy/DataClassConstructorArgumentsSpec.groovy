@@ -124,7 +124,6 @@ class DataClassConstructorArgumentsSpec extends Specification {
             exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
-    @PendingFeature
     def 'cannot construct a data class with positional and named arguments in wrong order 2'() {
 
         when:
