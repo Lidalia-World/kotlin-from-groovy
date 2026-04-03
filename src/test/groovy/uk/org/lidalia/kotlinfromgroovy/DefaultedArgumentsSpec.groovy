@@ -9,7 +9,6 @@ class DefaultedArgumentsSpec extends Specification {
 
     private def classUnderTest = new ClassWithDefaultedArgumentsToMethods()
 
-    @PendingFeature
     def 'can call functionWithOneDefaultedArgument with 0 args'() {
 
         when:
