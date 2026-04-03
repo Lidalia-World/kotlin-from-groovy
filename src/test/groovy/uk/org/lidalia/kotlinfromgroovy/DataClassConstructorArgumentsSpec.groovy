@@ -47,7 +47,6 @@ class DataClassConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "argument2")
     }
 
-    @PendingFeature
     def 'can construct a data class with default arguments with second named argument'() {
 
         when:
