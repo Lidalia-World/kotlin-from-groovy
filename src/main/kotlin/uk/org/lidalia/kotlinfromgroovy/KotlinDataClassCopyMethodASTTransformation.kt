@@ -42,19 +42,43 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     source.ast.classes.forEach { transformer.visitClass(it) }
   }
 
-  private fun hasNamedArgs(expr: MethodCallExpression): Boolean {
-    val args = expr.arguments as? TupleExpression ?: return false
-    return args.expressions.any { it is NamedArgumentListExpression }
-  }
+  private fun hasNamedArgs(expr: MethodCallExpression): Boolean =
+    findNamedArgs(expr.arguments) != null
 
-  private fun hasNamedArgs(expr: ConstructorCallExpression): Boolean {
-    val args = expr.arguments as? TupleExpression ?: return false
-    return args.expressions.any { it is NamedArgumentListExpression }
-  }
+  private fun hasNamedArgs(expr: ConstructorCallExpression): Boolean =
+    findNamedArgs(expr.arguments) != null
+
+  private fun findNamedArgs(args: Expression): NamedArgsInfo? =
+    when (args) {
+      is ArgumentListExpression -> {
+        val named = args.expressions.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
+        if (named != null) {
+          val positional = args.expressions.filter { it !is NamedArgumentListExpression }
+          NamedArgsInfo(MapExpression(named.mapEntryExpressions), positional)
+        } else {
+          val firstArg = args.expressions.firstOrNull()
+          if (firstArg is MapExpression && args.expressions.size > 1) {
+            NamedArgsInfo(firstArg, args.expressions.drop(1))
+          } else {
+            null
+          }
+        }
+      }
+      is TupleExpression -> {
+        val named = args.expressions.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
+        if (named != null) {
+          val positional = args.expressions.filter { it !is NamedArgumentListExpression }
+          NamedArgsInfo(MapExpression(named.mapEntryExpressions), positional)
+        } else {
+          null
+        }
+      }
+      else -> null
+    }
 
   private fun transformMethodCall(expr: MethodCallExpression): Expression? {
     val methodConstant = expr.method as? ConstantExpression ?: return null
-    val (namedArgMap, positionalArgs) = extractArgs(expr.arguments as TupleExpression)
+    val info = findNamedArgs(expr.arguments) ?: return null
     val methodName = methodConstant.value as String
 
     return StaticMethodCallExpression(
@@ -64,15 +88,15 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         listOf(
           expr.objectExpression,
           ConstantExpression(methodName),
-          namedArgMap,
-          positionalArgs,
+          info.namedArgMap,
+          ArrayExpression(ClassHelper.OBJECT_TYPE, info.positionalExprs),
         ),
       ),
     )
   }
 
-  private fun transformConstructorCall(expr: ConstructorCallExpression): Expression {
-    val (namedArgMap, positionalArgs) = extractArgs(expr.arguments as TupleExpression)
+  private fun transformConstructorCall(expr: ConstructorCallExpression): Expression? {
+    val info = findNamedArgs(expr.arguments) ?: return null
 
     return StaticMethodCallExpression(
       kotlinInteropClass,
@@ -80,26 +104,15 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       ArgumentListExpression(
         listOf(
           ClassExpression(expr.type),
-          namedArgMap,
-          positionalArgs,
+          info.namedArgMap,
+          ArrayExpression(ClassHelper.OBJECT_TYPE, info.positionalExprs),
         ),
       ),
     )
   }
-
-  private fun extractArgs(tuple: TupleExpression): Pair<MapExpression, ArrayExpression> {
-    val namedArgList = tuple.expressions.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
-    val positionalExprs = tuple.expressions.filter { it !is NamedArgumentListExpression }
-
-    val mapExpr = if (namedArgList != null) {
-      MapExpression(namedArgList.mapEntryExpressions)
-    } else {
-      MapExpression()
-    }
-
-    val objectClassNode = ClassHelper.OBJECT_TYPE
-    val arrayExpr = ArrayExpression(objectClassNode, positionalExprs)
-
-    return mapExpr to arrayExpr
-  }
 }
+
+private data class NamedArgsInfo(
+  val namedArgMap: MapExpression,
+  val positionalExprs: List<Expression>,
+)

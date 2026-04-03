@@ -131,7 +131,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'can call functionWithTwoArgumentFirstDefaulted with 1 positional 1 named args'() {
 
         when:
