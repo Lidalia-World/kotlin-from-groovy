@@ -55,7 +55,12 @@ fun callMethodWithNamedArgs(
     }
   }
 
-  return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+  try {
+    return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+  } catch (_: MissingMethodException) {
+    // Method not found — try extension functions
+    return resolveKotlinExtensionCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+  }
 }
 
 fun constructWithNamedArgs(
@@ -119,6 +124,49 @@ internal fun resolveKotlinMethodCall(
 
       val paramMap = resolveArgs(valueParams, namedArgs, positionalArgs, namedFirst)
       paramMap[instanceParam] = target
+
+      function.isAccessible = true
+      return function.callBy(paramMap)
+    } catch (e: IllegalArgumentException) {
+      errors += e
+    }
+  }
+
+  throw errors.first()
+}
+
+internal fun resolveKotlinExtensionCall(
+  target: Any,
+  methodName: String,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  namedFirst: Boolean = false,
+): Any? {
+  val candidates = KotlinExtensionFunctionResolver.findExtensionFunctions(
+    methodName,
+    target.javaClass,
+  )
+
+  if (candidates.isEmpty()) {
+    throw MissingMethodException(
+      methodName,
+      target.javaClass,
+      arrayOf<Any?>(namedArgs, *positionalArgs),
+    )
+  }
+
+  val errors = mutableListOf<IllegalArgumentException>()
+
+  for (candidate in candidates) {
+    try {
+      val function = candidate.function
+      val receiverParam = function.parameters
+        .first { it.kind == KParameter.Kind.EXTENSION_RECEIVER }
+      val valueParams = function.parameters
+        .filter { it.kind == KParameter.Kind.VALUE }
+
+      val paramMap = resolveArgs(valueParams, namedArgs, positionalArgs, namedFirst)
+      paramMap[receiverParam] = target
 
       function.isAccessible = true
       return function.callBy(paramMap)
