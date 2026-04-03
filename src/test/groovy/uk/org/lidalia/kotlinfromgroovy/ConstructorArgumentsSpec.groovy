@@ -71,7 +71,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with both named arguments in wrong order'() {
 
         when:
