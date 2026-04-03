@@ -50,7 +50,6 @@ class DataClassCopySpec extends Specification {
             exception.message == 'Cannot find a parameter with this name: notThere'
     }
 
-    @PendingFeature
     def 'cannot call copy with wrong type of argument'() {
 
         when:
@@ -61,7 +60,6 @@ class DataClassCopySpec extends Specification {
             exception.message == 'The integer literal does not conform to the expected type String'
     }
 
-    @PendingFeature
     def 'cannot call copy using positional arguments with wrong type of argument'() {
 
         when:
