@@ -184,7 +184,6 @@ class NamedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'cannot call a method with an incorrect argument'() {
 
         when:
