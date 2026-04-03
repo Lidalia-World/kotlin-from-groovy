@@ -9,7 +9,6 @@ class DataClassCopySpec extends Specification {
 
     def dataClassInstance = new DataClass('argument1', 2, true)
 
-    @PendingFeature
     def 'can call copy using named arguments'() {
 
         // Deliberately not using a parameterised test here as the AST transform may need the map inline
@@ -33,7 +32,6 @@ class DataClassCopySpec extends Specification {
             dataClassInstance.copy('new arg', 22, false) == new DataClass('new arg', 22, false)
     }
 
-    @PendingFeature
     def 'can call copy on a class with a custom copy method'() {
 
         expect:

@@ -16,6 +16,8 @@ fun callMethodWithNamedArgs(
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
 ): Any? {
+  ensureKotlinAwareMetaClass(target.javaClass)
+
   // First try Groovy's default behavior
   try {
     if (namedArgs.isEmpty()) {
@@ -38,6 +40,20 @@ fun callMethodWithNamedArgs(
     // Fall back to Kotlin named-arg resolution
   }
 
+  // If single positional arg is a Map, it may be named args that the AST
+  // transform couldn't detect (e.g. in Spock expect blocks)
+  if (namedArgs.isEmpty() && positionalArgs.size == 1 && positionalArgs[0] is Map<*, *>) {
+    @Suppress("UNCHECKED_CAST")
+    val mapArg = positionalArgs[0] as LinkedHashMap<String, Any?>
+    try {
+      return resolveKotlinMethodCall(target, methodName, mapArg, arrayOf())
+    } catch (_: IllegalArgumentException) {
+      // Map didn't match as named args; fall through
+    } catch (_: MissingMethodException) {
+      // fall through
+    }
+  }
+
   return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs)
 }
 
@@ -46,6 +62,8 @@ fun constructWithNamedArgs(
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
 ): Any {
+  ensureKotlinAwareMetaClass(clazz)
+
   // Try Groovy's default constructor resolution first
   if (namedArgs.isEmpty()) {
     try {
@@ -71,7 +89,7 @@ fun constructWithNamedArgs(
   return constructor.callBy(paramMap) as Any
 }
 
-private fun resolveKotlinMethodCall(
+internal fun resolveKotlinMethodCall(
   target: Any,
   methodName: String,
   namedArgs: LinkedHashMap<String, Any?>,
