@@ -98,7 +98,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with positional and subsequent positionally correct named argument'() {
 
         when:
