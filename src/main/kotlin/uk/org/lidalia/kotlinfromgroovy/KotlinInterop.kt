@@ -18,12 +18,22 @@ fun callMethodWithNamedArgs(
 ): Any? {
   // First try Groovy's default behavior
   try {
-    val groovyArgs = when {
-      namedArgs.isEmpty() -> positionalArgs
-      positionalArgs.isEmpty() -> arrayOf<Any?>(namedArgs)
-      else -> arrayOf<Any?>(namedArgs, *positionalArgs)
+    if (namedArgs.isEmpty()) {
+      // Use pickMethod with param count check to avoid Groovy coercing
+      // missing args to null (which violates Kotlin null safety)
+      val argTypes = positionalArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
+      val metaMethod = InvokerHelper.getMetaClass(target).pickMethod(methodName, argTypes)
+      if (metaMethod != null && metaMethod.nativeParameterTypes.size == positionalArgs.size) {
+        return metaMethod.invoke(target, positionalArgs)
+      }
+    } else {
+      val groovyArgs = if (positionalArgs.isEmpty()) {
+        arrayOf<Any?>(namedArgs)
+      } else {
+        arrayOf<Any?>(namedArgs, *positionalArgs)
+      }
+      return InvokerHelper.invokeMethod(target, methodName, groovyArgs)
     }
-    return InvokerHelper.invokeMethod(target, methodName, groovyArgs)
   } catch (_: MissingMethodException) {
     // Fall back to Kotlin named-arg resolution
   }

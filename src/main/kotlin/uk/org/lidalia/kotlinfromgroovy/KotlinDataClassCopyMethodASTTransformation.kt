@@ -14,6 +14,7 @@ import org.codehaus.groovy.ast.expr.MethodCallExpression
 import org.codehaus.groovy.ast.expr.NamedArgumentListExpression
 import org.codehaus.groovy.ast.expr.StaticMethodCallExpression
 import org.codehaus.groovy.ast.expr.TupleExpression
+import org.codehaus.groovy.ast.expr.VariableExpression
 import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.AbstractASTTransformation
@@ -31,7 +32,9 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       override fun transform(expr: Expression?): Expression? {
         val withTransformedChildren = super.transform(expr)
         return when (withTransformedChildren) {
-          is MethodCallExpression -> transformMethodCall(withTransformedChildren) ?: withTransformedChildren
+          is MethodCallExpression ->
+            if (isCallOnThis(withTransformedChildren)) withTransformedChildren
+            else transformMethodCall(withTransformedChildren) ?: withTransformedChildren
           is ConstructorCallExpression -> transformConstructorCall(withTransformedChildren) ?: withTransformedChildren
           else -> withTransformedChildren
         }
@@ -105,6 +108,11 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         ),
       ),
     )
+  }
+
+  private fun isCallOnThis(expr: MethodCallExpression): Boolean {
+    val obj = expr.objectExpression
+    return obj is VariableExpression && (obj.name == "this" || obj.name == "super")
   }
 
   private fun extractPositionalArgs(args: Expression): List<Expression> =
