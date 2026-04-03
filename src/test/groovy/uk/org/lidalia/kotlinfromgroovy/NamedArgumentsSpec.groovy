@@ -106,7 +106,6 @@ class NamedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'can call a method that takes a Map and another arg using named arguments'() {
 
         when:
