@@ -33,6 +33,7 @@ kotlin {
 
 dependencies {
   api(libs.groovy)
+  implementation(kotlin("reflect"))
   runtimeOnly(libs.groovy.all)
   testImplementation(libs.junit.jupiter.api)
   testImplementation(libs.spock.core)

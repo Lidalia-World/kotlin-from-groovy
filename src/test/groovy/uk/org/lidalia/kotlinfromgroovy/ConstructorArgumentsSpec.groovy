@@ -17,7 +17,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with one positional argument'() {
 
         when:
@@ -38,7 +37,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with first named argument'() {
 
         when:
@@ -49,7 +47,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with second named argument'() {
 
         when:
@@ -60,7 +57,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with both named arguments'() {
 
         when:
@@ -74,7 +70,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with both named arguments in wrong order'() {
 
         when:
@@ -88,7 +83,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with named argument and subsequent positional arguments'() {
 
         when:
@@ -102,7 +96,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with positional and subsequent positionally correct named argument'() {
 
         when:
@@ -116,7 +109,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'cannot construct an instance with positional and named arguments in wrong order'() {
 
         when:
@@ -131,7 +123,6 @@ class ConstructorArgumentsSpec extends Specification {
             exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
-    @PendingFeature
     def 'cannot construct an instance with positional and named arguments in wrong order 2'() {
 
         when:
@@ -146,7 +137,6 @@ class ConstructorArgumentsSpec extends Specification {
             exception.message == 'An argument is already passed for this parameter'
     }
 
-    @PendingFeature
     def 'cannot construct an instance with an incorrect argument'() {
 
         when:

@@ -1,0 +1,3 @@
+moduleName=kotlin-from-groovy
+moduleVersion=1.0
+extensionClasses=uk.org.lidalia.kotlinfromgroovy.KotlinDestructuringExtensions

@@ -2,11 +2,19 @@ root = true
 
 [*]
 insert_final_newline = true
+charset = utf-8
+end_of_line = lf
+trim_trailing_whitespace = true
 max_line_length = 100
+
+[*.bat]
+end_of_line = crlf
+
+[*.{diff,md}]
+trim_trailing_whitespace = false
 
 # noinspection EditorConfigKeyCorrectness
 [*.{kt,kts}]
-charset = utf-8
 indent_style = space
 indent_size = 2
 ij_kotlin_imports_layout = *,java.**,javax.**,kotlin.**,^
@@ -18,6 +26,7 @@ ij_java_packages_to_use_import_on_demand = unset
 ij_kotlin_packages_to_use_import_on_demand = unset
 ij_kotlin_allow_trailing_comma_on_call_site = true
 ij_kotlin_allow_trailing_comma = true
+
 ktlint_standard_no-empty-first-line-in-method-block = disabled
 ktlint_standard_multiline-expression-wrapping = disabled
 ktlint_standard_string-template-indent = disabled
@@ -25,3 +34,5 @@ ktlint_standard_no-blank-line-in-list = disabled
 ktlint_standard_no-empty-first-line-in-class-body = disabled
 ktlint_function_signature_rule_force_multiline_when_parameter_count_greater_or_equal_than = 3
 ktlint_function_signature_body_expression_wrapping = default
+ktlint_standard_chain-method-continuation = disabled
+ktlint_standard_class-signature = disabled

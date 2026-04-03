@@ -9,7 +9,6 @@ class DataClassCopySpec extends Specification {
 
     def dataClassInstance = new DataClass('argument1', 2, true)
 
-    @PendingFeature
     def 'can call copy using named arguments'() {
 
         // Deliberately not using a parameterised test here as the AST transform may need the map inline
@@ -23,7 +22,6 @@ class DataClassCopySpec extends Specification {
             dataClassInstance.copy(argument1: 'new arg', argument2: 22, argument3: false) == new DataClass('new arg', 22, false)
     }
 
-    @PendingFeature
     def 'can call copy using positional arguments'() {
 
         expect:
@@ -33,7 +31,6 @@ class DataClassCopySpec extends Specification {
             dataClassInstance.copy('new arg', 22, false) == new DataClass('new arg', 22, false)
     }
 
-    @PendingFeature
     def 'can call copy on a class with a custom copy method'() {
 
         expect:
@@ -43,7 +40,6 @@ class DataClassCopySpec extends Specification {
             new DataClassWithCustomCopyMethod('argument1', 2).copy(argument2: 3) == new DataClassWithCustomCopyMethod('argument1', 3)
     }
 
-    @PendingFeature
     def 'cannot call copy with wrong named argument'() {
 
         when:
@@ -54,7 +50,6 @@ class DataClassCopySpec extends Specification {
             exception.message == 'Cannot find a parameter with this name: notThere'
     }
 
-    @PendingFeature
     def 'cannot call copy with wrong type of argument'() {
 
         when:
@@ -65,7 +60,6 @@ class DataClassCopySpec extends Specification {
             exception.message == 'The integer literal does not conform to the expected type String'
     }
 
-    @PendingFeature
     def 'cannot call copy using positional arguments with wrong type of argument'() {
 
         when:
