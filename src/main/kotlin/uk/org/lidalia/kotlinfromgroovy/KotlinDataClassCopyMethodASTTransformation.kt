@@ -29,24 +29,16 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       override fun getSourceUnit(): SourceUnit = source
 
       override fun transform(expr: Expression?): Expression? {
-        val transformed = when {
-          expr is MethodCallExpression && hasNamedArgs(expr) ->
-            transformMethodCall(expr)
-          expr is ConstructorCallExpression && hasNamedArgs(expr) ->
-            transformConstructorCall(expr)
-          else -> null
+        val withTransformedChildren = super.transform(expr)
+        return when (withTransformedChildren) {
+          is MethodCallExpression -> transformMethodCall(withTransformedChildren) ?: withTransformedChildren
+          is ConstructorCallExpression -> transformConstructorCall(withTransformedChildren) ?: withTransformedChildren
+          else -> withTransformedChildren
         }
-        return transformed ?: super.transform(expr)
       }
     }
     source.ast.classes.forEach { transformer.visitClass(it) }
   }
-
-  private fun hasNamedArgs(expr: MethodCallExpression): Boolean =
-    findNamedArgs(expr.arguments) != null
-
-  private fun hasNamedArgs(expr: ConstructorCallExpression): Boolean =
-    findNamedArgs(expr.arguments) != null
 
   private fun findNamedArgs(args: Expression): NamedArgsInfo? =
     when (args) {
@@ -78,8 +70,10 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
 
   private fun transformMethodCall(expr: MethodCallExpression): Expression? {
     val methodConstant = expr.method as? ConstantExpression ?: return null
-    val info = findNamedArgs(expr.arguments) ?: return null
     val methodName = methodConstant.value as String
+    val info = findNamedArgs(expr.arguments)
+    val namedArgMap = info?.namedArgMap ?: MapExpression()
+    val positionalExprs = info?.positionalExprs ?: extractPositionalArgs(expr.arguments)
 
     return StaticMethodCallExpression(
       kotlinInteropClass,
@@ -88,15 +82,17 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         listOf(
           expr.objectExpression,
           ConstantExpression(methodName),
-          info.namedArgMap,
-          ArrayExpression(ClassHelper.OBJECT_TYPE, info.positionalExprs),
+          namedArgMap,
+          ArrayExpression(ClassHelper.OBJECT_TYPE, positionalExprs),
         ),
       ),
     )
   }
 
   private fun transformConstructorCall(expr: ConstructorCallExpression): Expression? {
-    val info = findNamedArgs(expr.arguments) ?: return null
+    val info = findNamedArgs(expr.arguments)
+    val namedArgMap = info?.namedArgMap ?: MapExpression()
+    val positionalExprs = info?.positionalExprs ?: extractPositionalArgs(expr.arguments)
 
     return StaticMethodCallExpression(
       kotlinInteropClass,
@@ -104,12 +100,18 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       ArgumentListExpression(
         listOf(
           ClassExpression(expr.type),
-          info.namedArgMap,
-          ArrayExpression(ClassHelper.OBJECT_TYPE, info.positionalExprs),
+          namedArgMap,
+          ArrayExpression(ClassHelper.OBJECT_TYPE, positionalExprs),
         ),
       ),
     )
   }
+
+  private fun extractPositionalArgs(args: Expression): List<Expression> =
+    when (args) {
+      is TupleExpression -> args.expressions.toList()
+      else -> emptyList()
+    }
 }
 
 private data class NamedArgsInfo(

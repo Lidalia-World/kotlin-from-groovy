@@ -16,12 +16,12 @@ fun callMethodWithNamedArgs(
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
 ): Any? {
-  // First try Groovy's default behavior (Map as first arg)
+  // First try Groovy's default behavior
   try {
-    val groovyArgs = if (positionalArgs.isEmpty()) {
-      arrayOf<Any?>(namedArgs)
-    } else {
-      arrayOf<Any?>(namedArgs, *positionalArgs)
+    val groovyArgs = when {
+      namedArgs.isEmpty() -> positionalArgs
+      positionalArgs.isEmpty() -> arrayOf<Any?>(namedArgs)
+      else -> arrayOf<Any?>(namedArgs, *positionalArgs)
     }
     return InvokerHelper.invokeMethod(target, methodName, groovyArgs)
   } catch (_: MissingMethodException) {
@@ -36,6 +36,16 @@ fun constructWithNamedArgs(
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
 ): Any {
+  // Try Groovy's default constructor resolution first
+  if (namedArgs.isEmpty()) {
+    try {
+      @Suppress("UNCHECKED_CAST")
+      return InvokerHelper.invokeConstructorOf(clazz, positionalArgs) as Any
+    } catch (_: Exception) {
+      // Fall back to Kotlin reflection
+    }
+  }
+
   val kClass = clazz.kotlin
   val constructor = kClass.primaryConstructor
     ?: error("Class ${clazz.simpleName} has no primary constructor")
