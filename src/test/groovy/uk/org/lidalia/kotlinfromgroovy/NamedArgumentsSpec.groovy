@@ -9,7 +9,6 @@ class NamedArgumentsSpec extends Specification {
 
     def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
 
-    @PendingFeature
     def 'can call a method using named arguments'() {
 
         when:
