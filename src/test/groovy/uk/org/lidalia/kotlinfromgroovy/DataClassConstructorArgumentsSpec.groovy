@@ -139,7 +139,6 @@ class DataClassConstructorArgumentsSpec extends Specification {
             exception.message == 'An argument is already passed for this parameter'
     }
 
-    @PendingFeature
     def 'cannot construct a data class with an incorrect argument'() {
 
         when:
