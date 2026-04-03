@@ -90,6 +90,7 @@ fun constructWithNamedArgs(
     namedArgs,
     positionalArgs,
     namedFirst,
+    validateNullability = isKotlinClass(clazz),
   )
 
   constructor.isAccessible = true
@@ -127,7 +128,13 @@ internal fun resolveKotlinMethodCall(
       val valueParams = function.parameters.filter { it.kind == KParameter.Kind.VALUE }
       val instanceParam = function.parameters.first { it.kind == KParameter.Kind.INSTANCE }
 
-      val paramMap = resolveArgs(valueParams, namedArgs, positionalArgs, namedFirst)
+      val paramMap = resolveArgs(
+        valueParams,
+        namedArgs,
+        positionalArgs,
+        namedFirst,
+        validateNullability = isKotlinClass(target.javaClass),
+      )
       paramMap[instanceParam] = target
 
       function.isAccessible = true
@@ -170,7 +177,13 @@ internal fun resolveKotlinExtensionCall(
       val valueParams = function.parameters
         .filter { it.kind == KParameter.Kind.VALUE }
 
-      val paramMap = resolveArgs(valueParams, namedArgs, positionalArgs, namedFirst)
+      val paramMap = resolveArgs(
+        valueParams,
+        namedArgs,
+        positionalArgs,
+        namedFirst,
+        validateNullability = true,
+      )
       paramMap[receiverParam] = target
 
       function.isAccessible = true
@@ -183,11 +196,15 @@ internal fun resolveKotlinExtensionCall(
   throw errors.first()
 }
 
+private fun isKotlinClass(clazz: Class<*>): Boolean =
+  clazz.isAnnotationPresent(Metadata::class.java)
+
 private fun resolveArgs(
   params: List<KParameter>,
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
   namedFirst: Boolean = false,
+  validateNullability: Boolean = false,
 ): MutableMap<KParameter, Any?> {
   val paramMap = mutableMapOf<KParameter, Any?>()
   val assignedParams = mutableSetOf<KParameter>()
@@ -251,9 +268,15 @@ private fun resolveArgs(
     }
   }
 
-  // Validate argument types
+  // Validate argument types and nullability
   for ((param, value) in paramMap) {
-    if (value != null && !param.type.jvmErasure.isInstance(value)) {
+    if (value == null) {
+      if (validateNullability && !param.type.isMarkedNullable) {
+        throw IllegalArgumentException(
+          "Null passed for non-null parameter '${param.name}'",
+        )
+      }
+    } else if (!param.type.jvmErasure.isInstance(value)) {
       val typeDesc = describeValueType(value)
       val expectedName = param.type.jvmErasure.simpleName
       throw IllegalArgumentException(
