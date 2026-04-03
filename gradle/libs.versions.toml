@@ -1,19 +1,21 @@
 [versions]
 groovy = "4.0.22"
 kotlin = "2.0.20"
+junit-jupiter = "5.12.2"
 
 [libraries]
 groovy = { module = "org.apache.groovy:groovy", version.ref = "groovy" }
 groovy-all = { module = "org.apache.groovy:groovy-all", version.ref = "groovy" }
 
 spock-core = { module = "org.spockframework:spock-core", version = "2.3-groovy-4.0" }
-junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version = "5.11.0" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
+junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit-jupiter" }
 
 semver4j = { module = "com.github.gundy:semver4j", version = "0.16.4" }
 
 [plugins]
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-dependencyAnalysis = { id = "com.autonomousapps.dependency-analysis", version = "1.33.0" }
+dependencyAnalysis = { id = "com.autonomousapps.dependency-analysis", version = "3.6.1" }
 kotlinter = { id = "org.jmailen.kotlinter", version = "5.4.2" }
 taskTree = { id = "com.dorongold.task-tree", version = "4.0.0" }
 versions = { id = "com.github.ben-manes.versions", version = "0.51.0" }
