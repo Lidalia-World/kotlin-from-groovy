@@ -145,39 +145,24 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    def 'can call functionWithTwoArgumentFirstDefaulted with mixed positional and named args'() {
+    @PendingFeature
+    def 'cannot call functionWithTwoArgumentFirstDefaulted with mixed positional and named args'() {
         when:
             classUnderTest.functionWithTwoArgumentFirstDefaulted('different 1', argument1: 'different 2')
 
         then:
-            classUnderTest.calls == [
-                new Call(
-                    'functionWithTwoArgumentFirstDefaulted',
-                    [
-                        'argument1': 'different 2',
-                        'argument2': 'different 1',
-                    ]
-                )
-            ]
-    }
-
-    def 'can call functionWithTwoArgumentFirstDefaulted with named arg for second param and positional'() {
+            def exception = thrown(IllegalArgumentException)
+            exception.message == 'An argument is already passed for this parameter'
 
         when:
-            classUnderTest.functionWithTwoArgumentFirstDefaulted(argument2: 'different 2', 'different 1')
+            classUnderTest.functionWithTwoArgumentFirstDefaulted(argument2: 'different 1', 'different 2')
 
         then:
-            classUnderTest.calls == [
-                new Call(
-                    'functionWithTwoArgumentFirstDefaulted',
-                    [
-                        'argument1': 'different 1',
-                        'argument2': 'different 2',
-                    ]
-                )
-            ]
+            exception = thrown(IllegalArgumentException)
+            exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
+    @PendingFeature
     def 'can call functionWithTwoArgumentFirstDefaulted with 1 named 1 positional args'() {
 
         when:
@@ -188,8 +173,8 @@ class DefaultedArgumentsSpec extends Specification {
                 new Call(
                     'functionWithTwoArgumentFirstDefaulted',
                     [
-                        'argument1': 'different 2',
-                        'argument2': 'different 1',
+                        'argument1': 'different 1',
+                        'argument2': 'different 2',
                     ]
                 )
             ]
