@@ -337,7 +337,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'can call functionWithOneNullableArgumentDefaultedToNotNull with no args'() {
         when:
             classUnderTest.functionWithOneNullableArgumentDefaultedToNotNull()
