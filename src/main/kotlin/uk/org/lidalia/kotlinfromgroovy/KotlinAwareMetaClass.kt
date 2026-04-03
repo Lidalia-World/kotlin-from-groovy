@@ -32,6 +32,7 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     args: Array<Any?>,
     original: MissingMethodException,
   ): Any? {
+    // If single arg is a LinkedHashMap, try as Kotlin named args
     if (args.size == 1 && args[0] is LinkedHashMap<*, *>) {
       @Suppress("UNCHECKED_CAST")
       val namedArgs = args[0] as LinkedHashMap<String, Any?>
@@ -41,7 +42,12 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
         throw original
       }
     }
-    throw original
+    // Try as positional args with Kotlin default parameter support
+    try {
+      return resolveKotlinMethodCall(target, name, linkedMapOf(), args)
+    } catch (_: Exception) {
+      throw original
+    }
   }
 }
 

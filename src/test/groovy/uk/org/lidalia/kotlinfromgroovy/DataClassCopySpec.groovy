@@ -22,7 +22,6 @@ class DataClassCopySpec extends Specification {
             dataClassInstance.copy(argument1: 'new arg', argument2: 22, argument3: false) == new DataClass('new arg', 22, false)
     }
 
-    @PendingFeature
     def 'can call copy using positional arguments'() {
 
         expect:
