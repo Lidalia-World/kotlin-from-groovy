@@ -48,7 +48,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with default arguments with second named argument'() {
 
         when:
