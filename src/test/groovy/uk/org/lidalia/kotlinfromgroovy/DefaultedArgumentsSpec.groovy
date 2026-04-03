@@ -161,11 +161,10 @@ class DefaultedArgumentsSpec extends Specification {
             exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
-    @PendingFeature
     def 'can call functionWithTwoArgumentFirstDefaulted with 1 named 1 positional args'() {
 
         when:
-            classUnderTest.functionWithTwoArgumentFirstDefaulted(argument1: 'different 2', 'different 1')
+            classUnderTest.functionWithTwoArgumentFirstDefaulted(argument1: 'different 1', 'different 2')
 
         then:
             classUnderTest.calls == [
