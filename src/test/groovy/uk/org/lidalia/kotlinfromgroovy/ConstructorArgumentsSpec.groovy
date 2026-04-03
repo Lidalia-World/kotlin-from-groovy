@@ -142,7 +142,6 @@ class ConstructorArgumentsSpec extends Specification {
             exception.message == 'An argument is already passed for this parameter'
     }
 
-    @PendingFeature
     def 'cannot construct an instance with an incorrect argument'() {
 
         when:
