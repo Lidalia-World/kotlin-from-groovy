@@ -58,7 +58,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'cannot call functionWithTwoArgumentFirstDefaulted with no args'() {
 
         when:
