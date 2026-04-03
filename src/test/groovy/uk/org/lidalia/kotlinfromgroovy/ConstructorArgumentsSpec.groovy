@@ -83,7 +83,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct an instance with named argument and subsequent positional arguments'() {
 
         when:
@@ -110,7 +109,6 @@ class ConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'cannot construct an instance with positional and named arguments in wrong order'() {
 
         when:

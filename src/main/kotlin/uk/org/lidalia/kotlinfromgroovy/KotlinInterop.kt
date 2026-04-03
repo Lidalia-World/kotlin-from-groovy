@@ -15,6 +15,7 @@ fun callMethodWithNamedArgs(
   methodName: String,
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
+  namedFirst: Boolean = false,
 ): Any? {
   ensureKotlinAwareMetaClass(target.javaClass)
 
@@ -54,13 +55,14 @@ fun callMethodWithNamedArgs(
     }
   }
 
-  return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs)
+  return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
 }
 
 fun constructWithNamedArgs(
   clazz: Class<*>,
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
+  namedFirst: Boolean = false,
 ): Any {
   ensureKotlinAwareMetaClass(clazz)
 
@@ -82,6 +84,7 @@ fun constructWithNamedArgs(
     constructor.parameters,
     namedArgs,
     positionalArgs,
+    namedFirst,
   )
 
   constructor.isAccessible = true
@@ -94,6 +97,7 @@ internal fun resolveKotlinMethodCall(
   methodName: String,
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
+  namedFirst: Boolean = false,
 ): Any? {
   val kClass = target::class
   val functions = kClass.memberFunctions.filter { it.name == methodName }
@@ -109,7 +113,7 @@ internal fun resolveKotlinMethodCall(
       val valueParams = function.parameters.filter { it.kind == KParameter.Kind.VALUE }
       val instanceParam = function.parameters.first { it.kind == KParameter.Kind.INSTANCE }
 
-      val paramMap = resolveArgs(valueParams, namedArgs, positionalArgs)
+      val paramMap = resolveArgs(valueParams, namedArgs, positionalArgs, namedFirst)
       paramMap[instanceParam] = target
 
       function.isAccessible = true
@@ -126,6 +130,7 @@ private fun resolveArgs(
   params: List<KParameter>,
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
+  namedFirst: Boolean = false,
 ): MutableMap<KParameter, Any?> {
   val paramMap = mutableMapOf<KParameter, Any?>()
   val assignedParams = mutableSetOf<KParameter>()
@@ -136,24 +141,50 @@ private fun resolveArgs(
       ?: throw IllegalArgumentException("Cannot find a parameter with this name: $name")
   }
 
-  // Assign positional args first (they fill params left-to-right)
-  for ((index, value) in positionalArgs.withIndex()) {
-    if (index >= params.size) {
-      throw IllegalArgumentException("Too many arguments")
+  if (namedFirst && positionalArgs.isNotEmpty() && namedArgs.isNotEmpty()) {
+    // Named args were written before positional args in source.
+    // Assign named args by name first, then positional args fill slots
+    // after the highest-indexed named parameter.
+    for ((name, value) in namedArgs) {
+      val param = params.find { it.name == name }!!
+      paramMap[param] = value
+      assignedParams += param
     }
-    val param = params[index]
-    paramMap[param] = value
-    assignedParams += param
-  }
 
-  // Assign named args
-  for ((name, value) in namedArgs) {
-    val param = params.find { it.name == name }!!
-    if (param in assignedParams) {
-      throw IllegalArgumentException("An argument is already passed for this parameter")
+    val highestNamedIndex = namedArgs.keys
+      .map { name -> params.indexOfFirst { it.name == name } }
+      .max()
+
+    val slotsAfterNamed = params
+      .filterIndexed { index, param -> index > highestNamedIndex && param !in assignedParams }
+
+    if (positionalArgs.size > slotsAfterNamed.size) {
+      throw IllegalArgumentException("Mixing named and positioned arguments is not allowed")
     }
-    paramMap[param] = value
-    assignedParams += param
+
+    for ((param, value) in slotsAfterNamed.zip(positionalArgs.toList())) {
+      paramMap[param] = value
+      assignedParams += param
+    }
+  } else {
+    // Positional args first (standard behavior)
+    for ((index, value) in positionalArgs.withIndex()) {
+      if (index >= params.size) {
+        throw IllegalArgumentException("Too many arguments")
+      }
+      val param = params[index]
+      paramMap[param] = value
+      assignedParams += param
+    }
+
+    for ((name, value) in namedArgs) {
+      val param = params.find { it.name == name }!!
+      if (param in assignedParams) {
+        throw IllegalArgumentException("An argument is already passed for this parameter")
+      }
+      paramMap[param] = value
+      assignedParams += param
+    }
   }
 
   // Check for missing required params

@@ -145,7 +145,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'cannot call functionWithTwoArgumentFirstDefaulted with mixed positional and named args'() {
         when:
             classUnderTest.functionWithTwoArgumentFirstDefaulted('different 1', argument1: 'different 2')

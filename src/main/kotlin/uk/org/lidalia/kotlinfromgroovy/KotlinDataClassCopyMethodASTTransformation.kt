@@ -51,44 +51,49 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     source.ast.classes.forEach { transformer.visitClass(it) }
   }
 
-  private fun findNamedArgs(args: Expression): NamedArgsInfo? =
-    when (args) {
-      is ArgumentListExpression -> {
-        val named = args.expressions.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
-        if (named != null) {
-          val positional = args.expressions.filter { it !is NamedArgumentListExpression }
-          NamedArgsInfo(MapExpression(named.mapEntryExpressions), positional)
-        } else {
-          val firstArg = args.expressions.firstOrNull()
-          if (firstArg is MapExpression) {
-            NamedArgsInfo(firstArg, args.expressions.drop(1))
-          } else {
-            null
-          }
-        }
-      }
-      is TupleExpression -> {
-        val named = args.expressions.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
-        if (named != null) {
-          val positional = args.expressions.filter { it !is NamedArgumentListExpression }
-          NamedArgsInfo(MapExpression(named.mapEntryExpressions), positional)
-        } else {
-          val firstArg = args.expressions.firstOrNull()
-          if (firstArg is MapExpression) {
-            NamedArgsInfo(firstArg, args.expressions.drop(1))
-          } else {
-            null
-          }
-        }
-      }
-      else -> null
+  private fun findNamedArgs(args: Expression): NamedArgsInfo? {
+    val exprs = when (args) {
+      is TupleExpression -> args.expressions
+      else -> return null
     }
+
+    val named = exprs.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
+    val mapExpr: MapExpression?
+    val positional: List<Expression>
+
+    if (named != null) {
+      mapExpr = MapExpression(named.mapEntryExpressions)
+      positional = exprs.filter { it !is NamedArgumentListExpression }
+    } else {
+      val firstArg = exprs.firstOrNull()
+      if (firstArg is MapExpression) {
+        mapExpr = firstArg
+        positional = exprs.drop(1)
+      } else {
+        return null
+      }
+    }
+
+    val namedFirst = detectNamedFirst(mapExpr, positional)
+    return NamedArgsInfo(mapExpr, positional, namedFirst)
+  }
+
+  private fun detectNamedFirst(mapExpr: MapExpression, positional: List<Expression>): Boolean {
+    if (positional.isEmpty() || mapExpr.mapEntryExpressions.isEmpty()) return false
+    val firstNamedLine = mapExpr.mapEntryExpressions.first().lineNumber
+    val firstNamedCol = mapExpr.mapEntryExpressions.first().columnNumber
+    val firstPositionalLine = positional.first().lineNumber
+    val firstPositionalCol = positional.first().columnNumber
+    return firstNamedLine < firstPositionalLine ||
+      (firstNamedLine == firstPositionalLine && firstNamedCol < firstPositionalCol)
+  }
 
   private fun transformMethodCall(expr: MethodCallExpression, precomputedInfo: NamedArgsInfo?): Expression? {
     val methodConstant = expr.method as? ConstantExpression ?: return null
     val methodName = methodConstant.value as String
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
     val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
+    val namedFirst = precomputedInfo?.namedFirst ?: false
 
     return StaticMethodCallExpression(
       kotlinInteropClass,
@@ -99,6 +104,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
           ConstantExpression(methodName),
           namedArgMap,
           ArrayExpression(ClassHelper.OBJECT_TYPE, positionalExprs),
+          ConstantExpression(namedFirst),
         ),
       ),
     )
@@ -107,6 +113,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   private fun transformConstructorCall(expr: ConstructorCallExpression, precomputedInfo: NamedArgsInfo?): Expression? {
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
     val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
+    val namedFirst = precomputedInfo?.namedFirst ?: false
 
     return StaticMethodCallExpression(
       kotlinInteropClass,
@@ -116,6 +123,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
           ClassExpression(expr.type),
           namedArgMap,
           ArrayExpression(ClassHelper.OBJECT_TYPE, positionalExprs),
+          ConstantExpression(namedFirst),
         ),
       ),
     )
@@ -136,4 +144,5 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
 private data class NamedArgsInfo(
   val namedArgMap: MapExpression,
   val positionalExprs: List<Expression>,
+  val namedFirst: Boolean,
 )
