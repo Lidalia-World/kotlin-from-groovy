@@ -9,7 +9,6 @@ import uk.org.lidalia.kotlinfromgroovy.testsupport.DataClass
 
 class DeconstructionSpec extends Specification {
 
-    @PendingFeature
     def 'can deconstruct a pair'() {
 
         when:
