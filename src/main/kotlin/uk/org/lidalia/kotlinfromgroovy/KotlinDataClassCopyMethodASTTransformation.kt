@@ -25,8 +25,8 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     val trn = object : ClassCodeExpressionTransformer() {
       override fun getSourceUnit(): SourceUnit = source
 
-      override fun transform(expr: Expression?): Expression? {
-        return if (isNamedArgumentMethodCall(expr)) {
+      override fun transform(expr: Expression?): Expression? =
+        if (isNamedArgumentMethodCall(expr)) {
           println()
           println("Expression: $expr")
           println("Expression.text: ${expr.text}")
@@ -45,7 +45,6 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         } else {
           super.transform(expr)
         }
-      }
     }
     source.ast.methods.forEach { trn.visitMethod(it) }
     source.ast.classes.forEach { trn.visitClass(it) }
@@ -56,17 +55,21 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       returns(true) implies (expression is MethodCallExpression)
     }
     return when (expression) {
-      is MethodCallExpression ->
+      is MethodCallExpression -> {
         tupleExpression(expression) is NamedArgumentListExpression
-      else -> false
+      }
+
+      else -> {
+        false
+      }
     }
   }
 
   private fun tupleExpression(expression: MethodCallExpression): Expression? =
     (expression.arguments as? TupleExpression)?.expressions?.singleOrNull()
 
-  private fun SourceUnit.findNamedArgumentMethodCalls(): List<MethodCallExpression> =
-    ast.classes.map { classNode ->
+  private fun SourceUnit.findNamedArgumentMethodCalls(): List<MethodCallExpression> = ast.classes
+    .map { classNode ->
 
       val fieldInitialiseMethodCalls = classNode.fields.mapNotNull { fieldNode ->
         if (fieldNode.hasInitialExpression()) {
@@ -81,31 +84,37 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         }
       }
 
-      val inMethodCalls = classNode.methods.mapNotNull { methodNode ->
-        val code = methodNode.code
-        if (code is BlockStatement) {
-          code.statements
-            .filterIsInstance<ExpressionStatement>()
-            .mapNotNull { expressionStatement ->
-              when (val expression = expressionStatement.expression) {
-                is MethodCallExpression -> filterMethodCallExpression(expression)
-                is DeclarationExpression -> {
-                  when (val rightExpression = expression.rightExpression) {
-                    is MethodCallExpression -> filterMethodCallExpression(
-                      rightExpression,
-                    )
-                    else -> null
+      val inMethodCalls = classNode.methods
+        .mapNotNull { methodNode ->
+          val code = methodNode.code
+          if (code is BlockStatement) {
+            code.statements
+              .filterIsInstance<ExpressionStatement>()
+              .mapNotNull { expressionStatement ->
+                when (val expression = expressionStatement.expression) {
+                  is MethodCallExpression -> {
+                    filterMethodCallExpression(expression)
+                  }
+
+                  is DeclarationExpression -> {
+                    when (val rightExpression = expression.rightExpression) {
+                      is MethodCallExpression -> filterMethodCallExpression(
+                        rightExpression,
+                      )
+
+                      else -> null
+                    }
+                  }
+
+                  else -> {
+                    null
                   }
                 }
-
-                else -> null
               }
-            }
-        } else {
-          null
-        }
-      }
-        .flatten()
+          } else {
+            null
+          }
+        }.flatten()
 
       fieldInitialiseMethodCalls + inMethodCalls
     }.flatten()
