@@ -1,7 +1,7 @@
 # kotlin-from-groovy
 
 A library that lets Groovy code call Kotlin idiomatically — named arguments, default parameter
-values, data class `copy`, and destructuring all work as you'd expect.
+values, data class `copy`, destructuring, and extension functions all work as you'd expect.
 
 This is particularly useful when you have Kotlin production code and Groovy
 (typically [Spock](https://spockframework.org)) tests.
@@ -141,9 +141,30 @@ def (String x, String y) = new Point(10, 20)
 // x == '10', y == '20' — Groovy coerces Integer to String via toString()
 ```
 
+### Extension functions
+
+Call Kotlin extension functions as if they were methods on the receiver type:
+
+```kotlin
+// Kotlin
+fun String.greetWith(greeting: String): String = "$greeting, $this!"
+fun String.greetWithDefault(greeting: String = "Hello"): String = "$greeting, $this!"
+```
+
+```groovy
+// Groovy
+'World'.greetWith('Hello')           // 'Hello, World!'
+'World'.greetWithDefault()           // 'Hello, World!' — uses default
+'World'.greetWithDefault('Hi')       // 'Hi, World!' — overrides default
+'World'.greetWith(greeting: 'Hey')   // 'Hey, World!' — named argument
+```
+
+Default parameters and named arguments work with extension functions just as they do with
+regular methods.
+
 ## How it works
 
-The library has two mechanisms:
+The library has three mechanisms:
 
 1. **A Groovy AST transformation** that rewires method calls, constructor calls, and `copy`
    calls at compile time to go through a Kotlin-aware resolver. This is registered automatically
@@ -152,7 +173,12 @@ The library has two mechanisms:
 2. **A Groovy extension module** that adds `getAt(int)` to all objects, enabling Groovy's
    multi-assignment syntax (`def (a, b) = ...`) to call Kotlin `componentN()` functions.
 
-Both are picked up automatically when the library is on the classpath.
+3. **A Kotlin-aware MetaClass** that intercepts method calls at runtime and falls back to
+   Kotlin reflection — resolving extension functions, default parameters, and named arguments
+   that Groovy's standard dispatch doesn't handle. Extension functions are discovered by
+   scanning the classpath for Kotlin file-facade classes.
+
+All three are picked up automatically when the library is on the classpath.
 
 ## Requirements
 
