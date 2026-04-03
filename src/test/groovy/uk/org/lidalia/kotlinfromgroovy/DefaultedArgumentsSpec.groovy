@@ -42,7 +42,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'can call functionWithOneDefaultedArgument with 1st named arg'() {
 
         when:
