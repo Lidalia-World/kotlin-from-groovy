@@ -50,7 +50,6 @@ class DeconstructionSpec extends Specification {
             second == 2
     }
 
-    @PendingFeature
     def 'cannot deconstruct when too many components'() {
 
         when:
