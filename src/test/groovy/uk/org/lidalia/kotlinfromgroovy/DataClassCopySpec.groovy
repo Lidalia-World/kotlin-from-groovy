@@ -43,7 +43,6 @@ class DataClassCopySpec extends Specification {
             new DataClassWithCustomCopyMethod('argument1', 2).copy(argument2: 3) == new DataClassWithCustomCopyMethod('argument1', 3)
     }
 
-    @PendingFeature
     def 'cannot call copy with wrong named argument'() {
 
         when:
