@@ -68,7 +68,6 @@ class DefaultedArgumentsSpec extends Specification {
             exception.message == 'No value passed for parameter \'argument2\''
     }
 
-    @PendingFeature
     def 'cannot call functionWithTwoArgumentFirstDefaulted with 1 positional arg'() {
 
         when:
