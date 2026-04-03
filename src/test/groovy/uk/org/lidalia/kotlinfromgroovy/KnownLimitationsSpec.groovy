@@ -57,4 +57,20 @@ class KnownLimitationsSpec extends Specification {
         expect:
             c[5] == 15
     }
+
+    def 'member infix function works via method call'() {
+
+        given:
+            def a = new Counter(3)
+            def b = new Counter(4)
+
+        expect:
+            a.add(b) == new Counter(7)
+    }
+
+    def 'extension infix function works via method call'() {
+
+        expect:
+            'hello'.concatWith(' world') == 'hello world'
+    }
 }

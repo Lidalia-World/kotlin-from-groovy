@@ -2,6 +2,7 @@ package uk.org.lidalia.kotlinfromgroovy.kotlintests
 
 import org.junit.jupiter.api.Test
 import uk.org.lidalia.kotlinfromgroovy.testsupport.Counter
+import uk.org.lidalia.kotlinfromgroovy.testsupport.concatWith
 
 class OperatorTest {
 
@@ -13,5 +14,15 @@ class OperatorTest {
   @Test
   fun `operator get works`() {
     assert(Counter(10)[5] == 15)
+  }
+
+  @Test
+  fun `member infix function works`() {
+    assert((Counter(3) add Counter(4)) == Counter(7))
+  }
+
+  @Test
+  fun `extension infix function works`() {
+    assert(("hello" concatWith " world") == "hello world")
   }
 }
