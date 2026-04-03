@@ -87,6 +87,7 @@ dependencyAnalysis {
       onAny {
         severity("fail")
         exclude("org.jetbrains.kotlin:kotlin-stdlib")
+        exclude(libs.junit.jupiter.asProvider())
       }
     }
   }
