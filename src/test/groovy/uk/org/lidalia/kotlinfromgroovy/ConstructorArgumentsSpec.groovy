@@ -126,7 +126,6 @@ class ConstructorArgumentsSpec extends Specification {
             exception.message == 'Mixing named and positioned arguments is not allowed'
     }
 
-    @PendingFeature
     def 'cannot construct an instance with positional and named arguments in wrong order 2'() {
 
         when:
