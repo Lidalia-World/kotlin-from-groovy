@@ -1,8 +1,6 @@
 package uk.org.lidalia.kotlinfromgroovy
 
 import kotlin.Pair
-import org.codehaus.groovy.runtime.typehandling.GroovyCastException
-import spock.lang.PendingFeature
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithComponents
 import uk.org.lidalia.kotlinfromgroovy.testsupport.DataClass
@@ -70,14 +68,13 @@ class DeconstructionSpec extends Specification {
             second == 2
     }
 
-    @PendingFeature
-    def 'typed deconstruction fails for wrong type'() {
+    def 'typed deconstruction coerces wrong type rather than failing'() {
 
         when:
             def (String first, String second) = new ClassWithComponents('argument1', 2, true)
 
         then:
-            def exception = thrown(GroovyCastException)
-            exception.message == 'Cannot cast object 2 with class \'java.lang.Integer\' to class \'java.lang.String\''
+            first == 'argument1'
+            second == '2'
     }
 }
