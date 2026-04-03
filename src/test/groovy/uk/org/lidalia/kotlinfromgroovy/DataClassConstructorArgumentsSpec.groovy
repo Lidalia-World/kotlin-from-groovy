@@ -97,7 +97,6 @@ class DataClassConstructorArgumentsSpec extends Specification {
             assert (instance.argument2 == "different argument2")
     }
 
-    @PendingFeature
     def 'can construct a data class with positional and subsequent positionally correct named argument'() {
 
         when:
