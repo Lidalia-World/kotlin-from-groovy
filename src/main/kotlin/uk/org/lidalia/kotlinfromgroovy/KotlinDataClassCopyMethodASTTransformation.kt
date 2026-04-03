@@ -39,12 +39,23 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         }
         val withTransformedChildren = super.transform(expr)
         return when (withTransformedChildren) {
-          is MethodCallExpression ->
-            if (isCallOnThis(withTransformedChildren)) withTransformedChildren
-            else transformMethodCall(withTransformedChildren, precomputedInfo) ?: withTransformedChildren
-          is ConstructorCallExpression ->
-            transformConstructorCall(withTransformedChildren, precomputedInfo) ?: withTransformedChildren
-          else -> withTransformedChildren
+          is MethodCallExpression -> {
+            if (isCallOnThis(withTransformedChildren)) {
+              withTransformedChildren
+            } else {
+              transformMethodCall(withTransformedChildren, precomputedInfo)
+                ?: withTransformedChildren
+            }
+          }
+
+          is ConstructorCallExpression -> {
+            transformConstructorCall(withTransformedChildren, precomputedInfo)
+              ?: withTransformedChildren
+          }
+
+          else -> {
+            withTransformedChildren
+          }
         }
       }
     }
@@ -88,7 +99,10 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       (firstNamedLine == firstPositionalLine && firstNamedCol < firstPositionalCol)
   }
 
-  private fun transformMethodCall(expr: MethodCallExpression, precomputedInfo: NamedArgsInfo?): Expression? {
+  private fun transformMethodCall(
+    expr: MethodCallExpression,
+    precomputedInfo: NamedArgsInfo?,
+  ): Expression? {
     val methodConstant = expr.method as? ConstantExpression ?: return null
     val methodName = methodConstant.value as String
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
@@ -110,7 +124,10 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     )
   }
 
-  private fun transformConstructorCall(expr: ConstructorCallExpression, precomputedInfo: NamedArgsInfo?): Expression? {
+  private fun transformConstructorCall(
+    expr: ConstructorCallExpression,
+    precomputedInfo: NamedArgsInfo?,
+  ): Expression? {
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
     val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
     val namedFirst = precomputedInfo?.namedFirst ?: false
@@ -134,11 +151,10 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     return obj is VariableExpression && (obj.name == "this" || obj.name == "super")
   }
 
-  private fun extractPositionalArgs(args: Expression): List<Expression> =
-    when (args) {
-      is TupleExpression -> args.expressions.toList()
-      else -> emptyList()
-    }
+  private fun extractPositionalArgs(args: Expression): List<Expression> = when (args) {
+    is TupleExpression -> args.expressions.toList()
+    else -> emptyList()
+  }
 }
 
 private data class NamedArgsInfo(

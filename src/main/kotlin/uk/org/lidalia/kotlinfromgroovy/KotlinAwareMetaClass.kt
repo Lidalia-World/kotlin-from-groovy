@@ -7,24 +7,30 @@ import groovy.lang.MissingMethodException
 
 class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) {
 
-  override fun invokeMethod(target: Any, name: String, args: Array<Any?>): Any? =
-    try {
-      super.invokeMethod(target, name, args)
-    } catch (e: MissingMethodException) {
-      fallbackToKotlinReflect(target, name, args, e)
-    }
+  override fun invokeMethod(
+    target: Any,
+    name: String,
+    args: Array<Any?>,
+  ): Any? = try {
+    super.invokeMethod(target, name, args)
+  } catch (e: MissingMethodException) {
+    fallbackToKotlinReflect(target, name, args, e)
+  }
 
-  override fun invokeMethod(target: Any, name: String, args: Any?): Any? =
-    try {
-      super.invokeMethod(target, name, args)
-    } catch (e: MissingMethodException) {
-      @Suppress("UNCHECKED_CAST")
-      val argsArray = when (args) {
-        is Array<*> -> args as Array<Any?>
-        else -> arrayOf(args)
-      }
-      fallbackToKotlinReflect(target, name, argsArray, e)
+  override fun invokeMethod(
+    target: Any,
+    name: String,
+    args: Any?,
+  ): Any? = try {
+    super.invokeMethod(target, name, args)
+  } catch (e: MissingMethodException) {
+    @Suppress("UNCHECKED_CAST")
+    val argsArray = when (args) {
+      is Array<*> -> args as Array<Any?>
+      else -> arrayOf(args)
     }
+    fallbackToKotlinReflect(target, name, argsArray, e)
+  }
 
   private fun fallbackToKotlinReflect(
     target: Any,

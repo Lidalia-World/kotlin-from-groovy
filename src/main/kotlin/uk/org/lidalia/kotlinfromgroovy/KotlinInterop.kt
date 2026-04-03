@@ -3,12 +3,12 @@
 package uk.org.lidalia.kotlinfromgroovy
 
 import groovy.lang.MissingMethodException
+import org.codehaus.groovy.runtime.InvokerHelper
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.jvmErasure
-import org.codehaus.groovy.runtime.InvokerHelper
 
 fun callMethodWithNamedArgs(
   target: Any,
@@ -103,7 +103,11 @@ internal fun resolveKotlinMethodCall(
   val functions = kClass.memberFunctions.filter { it.name == methodName }
 
   if (functions.isEmpty()) {
-    throw MissingMethodException(methodName, target.javaClass, arrayOf<Any?>(namedArgs, *positionalArgs))
+    throw MissingMethodException(
+      methodName,
+      target.javaClass,
+      arrayOf<Any?>(namedArgs, *positionalArgs),
+    )
   }
 
   val errors = mutableListOf<IllegalArgumentException>()
@@ -199,21 +203,22 @@ private fun resolveArgs(
     if (value != null && !param.type.jvmErasure.isInstance(value)) {
       val typeDesc = describeValueType(value)
       val expectedName = param.type.jvmErasure.simpleName
-      throw IllegalArgumentException("The $typeDesc does not conform to the expected type $expectedName")
+      throw IllegalArgumentException(
+        "The $typeDesc does not conform to the expected type $expectedName",
+      )
     }
   }
 
   return paramMap
 }
 
-private fun describeValueType(value: Any): String =
-  when (value) {
-    is Int -> "integer literal"
-    is Long -> "long literal"
-    is Double -> "double literal"
-    is Float -> "float literal"
-    is Boolean -> "boolean literal"
-    is Char -> "character literal"
-    is String -> "string literal"
-    else -> "value of type ${value::class.simpleName}"
-  }
+private fun describeValueType(value: Any): String = when (value) {
+  is Int -> "integer literal"
+  is Long -> "long literal"
+  is Double -> "double literal"
+  is Float -> "float literal"
+  is Boolean -> "boolean literal"
+  is Char -> "character literal"
+  is String -> "string literal"
+  else -> "value of type ${value::class.simpleName}"
+}
