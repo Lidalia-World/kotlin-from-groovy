@@ -19,7 +19,6 @@ class DeconstructionSpec extends Specification {
             second == 2
     }
 
-    @PendingFeature
     def 'can deconstruct a data class'() {
 
         when:
