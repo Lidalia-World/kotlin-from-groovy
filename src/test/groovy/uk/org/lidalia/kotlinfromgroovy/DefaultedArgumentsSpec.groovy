@@ -213,7 +213,6 @@ class DefaultedArgumentsSpec extends Specification {
             ]
     }
 
-    @PendingFeature
     def 'cannot call functionWithTwoArgumentsSecondDefaulted with 2nd named arg'() {
 
         when:
