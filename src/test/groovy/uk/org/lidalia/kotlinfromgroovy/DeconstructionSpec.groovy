@@ -30,7 +30,6 @@ class DeconstructionSpec extends Specification {
             third == true
     }
 
-    @PendingFeature
     def 'can partially deconstruct a class'() {
 
         when:
