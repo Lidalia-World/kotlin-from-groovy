@@ -8,6 +8,7 @@ import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArguments
 import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstructor
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.OpenClassWithDefaults
+import uk.org.lidalia.kotlinfromgroovy.testsupport.SimpleCallback
 
 class ConsumingProjectCompatibilitySpec extends Specification {
 
@@ -112,7 +113,27 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             instance.value == 'default'
     }
 
-    // Issue 6: Groovy can pass null for the args Array parameter of
+    // Issue 6: Anonymous inner classes implementing a Kotlin interface
+    // should work. The AST transform must not rewrite anonymous class
+    // constructors into constructWithNamedArgs, because anonymous inner
+    // classes have hidden constructor parameters (enclosing instance).
+
+    def 'can create anonymous inner class implementing a Kotlin interface'() {
+
+        when:
+            def callback = new SimpleCallback() {
+                @Override
+                String execute() {
+                    return 'hello from anonymous'
+                }
+            }
+
+        then:
+            notThrown(Exception)
+            callback.execute() == 'hello from anonymous'
+    }
+
+    // Issue 7: Groovy can pass null for the args Array parameter of
     // invokeMethod; this should not cause a NullPointerException
     // inside KotlinAwareMetaClass. When null is passed as Object[],
     // it should be treated as "no arguments" so default parameter
