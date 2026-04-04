@@ -49,18 +49,10 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
 
         // Detect named args before super.transform, which may convert
         // NamedArgumentListExpression to plain MapExpression
-        val precomputedInfo = when {
-          expr is MethodCallExpression -> {
-            findNamedArgs(expr.arguments)
-          }
-
-          expr is ConstructorCallExpression -> {
-            findNamedArgs(expr.arguments)
-          }
-
-          else -> {
-            null
-          }
+        val precomputedInfo = when (expr) {
+          is MethodCallExpression -> findNamedArgs(expr.arguments)
+          is ConstructorCallExpression -> findNamedArgs(expr.arguments)
+          else -> null
         }
         val withTransformedChildren = super.transform(expr)
         return when (withTransformedChildren) {
