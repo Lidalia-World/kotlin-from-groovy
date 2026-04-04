@@ -5,6 +5,7 @@ import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassThatThrowsInConstructor
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
+import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithOverloadedConstructors
 import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstructor
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.OpenClassWithDefaults
@@ -345,6 +346,21 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             notThrown(Exception)
             inner.name == 'test'
             inner.value == 42
+    }
+
+    // Issue 18: Java classes with overloaded constructors and null args
+    // must not be transformed when using positional-only args. The AST
+    // transform loses cast type information, causing ambiguity errors.
+
+    def 'can construct Java class with overloaded constructors and null arg'() {
+
+        when:
+            def instance = new JavaClassWithOverloadedConstructors('type', (String) null)
+
+        then:
+            notThrown(Exception)
+            instance.type == 'type'
+            instance.value == null
     }
 
 }
