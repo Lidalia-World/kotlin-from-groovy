@@ -152,7 +152,7 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             instance.calls[0].arguments == [argument1: 'argument1']
     }
 
-    // Issue 7: Groovy can pass null for the args parameter of
+    // Issue 8: Groovy can pass null for the args parameter of
     def 'invokeMethod handles null args for method with defaults'() {
 
         given:
@@ -164,6 +164,37 @@ class ConsumingProjectCompatibilitySpec extends Specification {
         then:
             notThrown(Exception)
             instance.calls[0].arguments == [argument1: 'argument1']
+    }
+
+    // Issue 9: Map literals passed as arguments should be treated as
+    // positional values, not as named arguments. The AST transform
+    // must not confuse a MapExpression (e.g. [:] or [key: value]) with
+    // NamedArgumentListExpression (e.g. foo(key: value)).
+
+    def 'can pass empty map literal to a method that takes a Map parameter'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithMapArgument([:])
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [argument1: [:]]
+    }
+
+    def 'can pass non-empty map literal to a method that takes a Map parameter'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithMapArgument([key1: 'value1', key2: 'value2'])
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [argument1: [key1: 'value1', key2: 'value2']]
     }
 
 }

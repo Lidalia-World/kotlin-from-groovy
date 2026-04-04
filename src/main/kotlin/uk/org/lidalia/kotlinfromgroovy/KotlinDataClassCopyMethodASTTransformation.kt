@@ -105,7 +105,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       positional = exprs.filter { it !is NamedArgumentListExpression }
     } else {
       val firstArg = exprs.firstOrNull()
-      if (firstArg is MapExpression) {
+      if (firstArg is MapExpression && firstArg.mapEntryExpressions.isNotEmpty()) {
         mapExpr = firstArg
         positional = exprs.drop(1)
       } else {

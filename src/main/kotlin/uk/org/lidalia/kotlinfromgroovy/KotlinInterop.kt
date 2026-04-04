@@ -115,17 +115,31 @@ fun constructWithNamedArgs(
     return InvokerHelper.invokeConstructorOf(clazz, groovyArgs) as Any
   }
 
-  val paramMap = resolveArgs(
-    constructor.parameters,
-    namedArgs,
-    positionalArgs,
-    namedFirst,
-    validateNullability = isKotlinClass(clazz),
-  )
+  try {
+    val paramMap = resolveArgs(
+      constructor.parameters,
+      namedArgs,
+      positionalArgs,
+      namedFirst,
+      validateNullability = isKotlinClass(clazz),
+    )
 
-  constructor.isAccessible = true
-  @Suppress("UNCHECKED_CAST")
-  return callByUnwrapping(constructor, paramMap) as Any
+    constructor.isAccessible = true
+    @Suppress("UNCHECKED_CAST")
+    return callByUnwrapping(constructor, paramMap) as Any
+  } catch (e: UnknownNamedParameterException) {
+    // Named args didn't match constructor params — possibly a literal map
+    // value misidentified as named args by the AST transform.
+    // Try Groovy dispatch with the map as a positional argument;
+    // if that also fails, re-throw the original error.
+    val groovyArgs = buildGroovyArgs(namedArgs, positionalArgs)
+    try {
+      @Suppress("UNCHECKED_CAST")
+      return InvokerHelper.invokeConstructorOf(clazz, groovyArgs) as Any
+    } catch (_: Exception) {
+      throw e
+    }
+  }
 }
 
 internal fun resolveKotlinMethodCall(
