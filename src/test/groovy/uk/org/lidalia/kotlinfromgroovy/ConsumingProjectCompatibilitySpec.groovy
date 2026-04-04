@@ -3,6 +3,7 @@ package uk.org.lidalia.kotlinfromgroovy
 import org.codehaus.groovy.runtime.wrappers.PojoWrapper
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassThatThrowsInConstructor
+import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstructor
 
@@ -57,6 +58,24 @@ class ConsumingProjectCompatibilitySpec extends Specification {
                 argument2: 2,
                 argument3: true,
             ]
+    }
+
+    // Issue 4: Groovy can pass null for the args parameter of
+    // invokeMethod; this should not cause a NullPointerException
+    // inside KotlinAwareMetaClass. When null is passed, it should be
+    // treated as "no arguments" so default parameter values are used.
+
+    def 'invokeMethod handles null args for method with defaults'() {
+
+        given:
+            def instance = new ClassWithDefaultedArgumentsToMethods()
+
+        when:
+            instance.metaClass.invokeMethod(instance, 'functionWithOneDefaultedArgument', (Object) null)
+
+        then:
+            notThrown(Exception)
+            instance.calls[0].arguments == [argument1: 'argument1']
     }
 
 }

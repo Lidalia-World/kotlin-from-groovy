@@ -39,16 +39,19 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     target: Any,
     name: String,
     args: Any?,
-  ): Any? = try {
-    super.invokeMethod(target, name, args)
-  } catch (e: MissingMethodException) {
-    @Suppress("UNCHECKED_CAST")
-    val argsArray: Array<Any?> = when (args) {
-      null -> emptyArray()
-      is Array<*> -> args as Array<Any?>
-      else -> arrayOf(args)
+  ): Any? = when (args) {
+    null -> invokeMethod(target, name, emptyArray<Any?>())
+
+    else -> try {
+      super.invokeMethod(target, name, args)
+    } catch (e: MissingMethodException) {
+      @Suppress("UNCHECKED_CAST")
+      val argsArray: Array<Any?> = when (args) {
+        is Array<*> -> args as Array<Any?>
+        else -> arrayOf(args)
+      }
+      fallbackToKotlinReflect(target, name, argsArray, e)
     }
-    fallbackToKotlinReflect(target, name, argsArray, e)
   }
 
   private fun fallbackToKotlinReflect(
