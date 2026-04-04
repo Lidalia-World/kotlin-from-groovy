@@ -344,7 +344,7 @@ private fun resolveArgs(
   for ((param, value) in paramMap) {
     if (value == null) {
       if (validateNullability && !param.type.isMarkedNullable) {
-        throw IllegalArgumentException(
+        throw NullPointerException(
           "Null passed for non-null parameter '${param.name}'",
         )
       }
