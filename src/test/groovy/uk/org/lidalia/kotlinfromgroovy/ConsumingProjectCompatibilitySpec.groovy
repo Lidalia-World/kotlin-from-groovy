@@ -314,7 +314,24 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             classUnderTest.calls[0].arguments == [values: [1, 2, 3, 5, 8]]
     }
 
-    // Issue 16: The getAt extension for Kotlin destructuring must not
+    // Issue 16: Kotlin typed vararg parameters (e.g. vararg options: String)
+    // must work when called with multiple arguments from Groovy. The packed
+    // array must match the expected element type, not be Object[].
+
+    def 'can call Kotlin method with typed varargs and multiple arguments'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithVarargs('a', 'b', 'c')
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [options: ['a', 'b', 'c']]
+    }
+
+    // Issue 17: The getAt extension for Kotlin destructuring must not
     // shadow Groovy's built-in Map.getAt(key) when the object is a Map.
 
     def 'can use integer key to access map via getAt operator'() {
