@@ -295,4 +295,21 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             classUnderTest.calls[0].arguments == [options: []]
     }
 
+    // Issue 15: Kotlin vararg parameters should accept multiple positional
+    // arguments from Groovy. resolveArgs must pack trailing positional
+    // args into the vararg array instead of throwing "Too many arguments".
+
+    def 'can call Kotlin method with varargs and multiple arguments'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithVarargsAny(1, 2, 3, 5, 8)
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [values: [1, 2, 3, 5, 8]]
+    }
+
 }

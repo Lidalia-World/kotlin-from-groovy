@@ -336,9 +336,24 @@ private fun resolveArgs(
     // Positional args first (standard behavior)
     for ((index, value) in positionalArgs.withIndex()) {
       if (index >= params.size) {
+        // Check if the last param is vararg — pack remaining args into it
+        val lastParam = params.last()
+        if (lastParam.isVararg) {
+          val varargValues = positionalArgs.drop(params.size - 1)
+          paramMap[lastParam] = varargValues.toTypedArray()
+          assignedParams += lastParam
+          break
+        }
         throw IllegalArgumentException("Too many arguments")
       }
       val param = params[index]
+      if (param.isVararg && index == params.size - 1 && positionalArgs.size > params.size) {
+        // Pack remaining positional args into the vararg parameter
+        val varargValues = positionalArgs.drop(index)
+        paramMap[param] = varargValues.toTypedArray()
+        assignedParams += param
+        break
+      }
       paramMap[param] = value
       assignedParams += param
     }
