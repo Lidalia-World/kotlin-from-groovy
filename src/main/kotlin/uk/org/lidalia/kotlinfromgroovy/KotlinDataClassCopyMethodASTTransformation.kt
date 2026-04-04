@@ -24,6 +24,7 @@ import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.AbstractASTTransformation
 import org.codehaus.groovy.transform.GroovyASTTransformation
+import java.lang.reflect.Modifier
 
 private val kotlinInteropClass = ClassHelper.make("uk.org.lidalia.kotlinfromgroovy.KotlinInterop")
 
@@ -49,18 +50,10 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
 
         // Detect named args before super.transform, which may convert
         // NamedArgumentListExpression to plain MapExpression
-        val precomputedInfo = when {
-          expr is MethodCallExpression -> {
-            findNamedArgs(expr.arguments)
-          }
-
-          expr is ConstructorCallExpression -> {
-            findNamedArgs(expr.arguments)
-          }
-
-          else -> {
-            null
-          }
+        val precomputedInfo = when (expr) {
+          is MethodCallExpression -> findNamedArgs(expr.arguments)
+          is ConstructorCallExpression -> findNamedArgs(expr.arguments)
+          else -> null
         }
         val withTransformedChildren = super.transform(expr)
         return when (withTransformedChildren) {
@@ -102,41 +95,36 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   private fun AnnotatedNode.hasAnnotationNamed(name: String): Boolean =
     annotations.any { it.classNode.name == name }
 
-  private fun findNamedArgs(args: Expression): NamedArgsInfo? {
-    val exprs = when (args) {
-      is TupleExpression -> args.expressions
-      else -> return null
-    }
+  private fun findNamedArgs(args: Expression): NamedArgsInfo? =
+    (args as? TupleExpression)?.expressions?.let { exprs ->
+      val named = exprs.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
+      when {
+        named != null -> {
+          val mapExpr = MapExpression(named.mapEntryExpressions)
+          val positional = exprs.filter { it !is NamedArgumentListExpression }
+          NamedArgsInfo(mapExpr, positional, detectNamedFirst(mapExpr, positional))
+        }
 
-    val named = exprs.filterIsInstance<NamedArgumentListExpression>().firstOrNull()
-    val mapExpr: MapExpression?
-    val positional: List<Expression>
-
-    if (named != null) {
-      mapExpr = MapExpression(named.mapEntryExpressions)
-      positional = exprs.filter { it !is NamedArgumentListExpression }
-    } else {
-      val firstArg = exprs.firstOrNull()
-      if (firstArg is MapExpression && firstArg.mapEntryExpressions.isNotEmpty()) {
-        mapExpr = firstArg
-        positional = exprs.drop(1)
-      } else {
-        return null
+        else -> {
+          val firstArg = exprs.firstOrNull()
+          if (firstArg is MapExpression && firstArg.mapEntryExpressions.isNotEmpty()) {
+            val positional = exprs.drop(1)
+            NamedArgsInfo(firstArg, positional, detectNamedFirst(firstArg, positional))
+          } else {
+            null
+          }
+        }
       }
     }
 
-    val namedFirst = detectNamedFirst(mapExpr, positional)
-    return NamedArgsInfo(mapExpr, positional, namedFirst)
-  }
-
   private fun detectNamedFirst(mapExpr: MapExpression, positional: List<Expression>): Boolean {
-    if (positional.isEmpty() || mapExpr.mapEntryExpressions.isEmpty()) return false
-    val firstNamedLine = mapExpr.mapEntryExpressions.first().lineNumber
-    val firstNamedCol = mapExpr.mapEntryExpressions.first().columnNumber
-    val firstPositionalLine = positional.first().lineNumber
-    val firstPositionalCol = positional.first().columnNumber
-    return firstNamedLine < firstPositionalLine ||
-      (firstNamedLine == firstPositionalLine && firstNamedCol < firstPositionalCol)
+    val firstNamed = mapExpr.mapEntryExpressions.firstOrNull()
+    val firstPos = positional.firstOrNull()
+    return when {
+      firstNamed == null || firstPos == null -> false
+      firstNamed.lineNumber != firstPos.lineNumber -> firstNamed.lineNumber < firstPos.lineNumber
+      else -> firstNamed.columnNumber < firstPos.columnNumber
+    }
   }
 
   private fun transformMethodCall(
@@ -171,7 +159,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     // Non-static inner classes have an implicit enclosing instance
     // parameter that constructWithNamedArgs cannot supply.
     if (expr.type.outerClass != null &&
-      !java.lang.reflect.Modifier.isStatic(expr.type.modifiers)
+      !Modifier.isStatic(expr.type.modifiers)
     ) {
       return null
     }

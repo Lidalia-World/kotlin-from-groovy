@@ -75,32 +75,36 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
   ): Any? {
     // Groovy puts named args as a LinkedHashMap in the first position,
     // with any positional args after it.
+    val namedArgs: LinkedHashMap<String, Any?>
+    val positionalArgs: Array<Any?>
     if (args.isNotEmpty() && args[0] is LinkedHashMap<*, *>) {
       @Suppress("UNCHECKED_CAST")
-      val namedArgs = args[0] as LinkedHashMap<String, Any?>
-      val positionalArgs = args.drop(1).toTypedArray()
-      try {
-        return resolveKotlinMethodCall(target, name, namedArgs, positionalArgs)
-      } catch (_: MissingMethodException) {
-        // Method not found — try extension functions
-      }
-      try {
-        return resolveKotlinExtensionCall(target, name, namedArgs, positionalArgs)
-      } catch (_: MissingMethodException) {
-        throw original
-      }
+      namedArgs = args[0] as LinkedHashMap<String, Any?>
+      positionalArgs = args.drop(1).toTypedArray()
+    } else {
+      namedArgs = linkedMapOf()
+      positionalArgs = args
     }
-    // Try as positional args with Kotlin default parameter support
-    try {
-      return resolveKotlinMethodCall(target, name, linkedMapOf(), args)
-    } catch (_: MissingMethodException) {
-      // Method not found — try extension functions
-    }
-    try {
-      return resolveKotlinExtensionCall(target, name, linkedMapOf(), args)
-    } catch (_: MissingMethodException) {
-      throw original
-    }
+    return resolveKotlinCall(target, name, namedArgs, positionalArgs, original)
+  }
+}
+
+private fun resolveKotlinCall(
+  target: Any,
+  name: String,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  original: MissingMethodException,
+): Any? {
+  try {
+    return resolveKotlinMethodCall(target, name, namedArgs, positionalArgs)
+  } catch (_: MissingMethodException) {
+    // Method not found — try extension functions
+  }
+  try {
+    return resolveKotlinExtensionCall(target, name, namedArgs, positionalArgs)
+  } catch (_: MissingMethodException) {
+    throw original
   }
 }
 
@@ -122,9 +126,7 @@ internal fun ensureKotlinAwareMetaClass(clazz: Class<*>) {
   val registry = GroovySystem.getMetaClassRegistry()
   val current = registry.getMetaClass(clazz)
   if (current !is KotlinAwareMetaClass) {
-    val wrapped = KotlinAwareMetaClass(current)
-    wrapped.initialize()
-    registry.setMetaClass(clazz, wrapped)
+    registry.setMetaClass(clazz, KotlinAwareMetaClass(current).apply { initialize() })
   }
 }
 
@@ -140,20 +142,10 @@ internal fun installGlobalMetaClassHandler() {
     object : MetaClassRegistry.MetaClassCreationHandle() {
       override fun createNormalMetaClass(theClass: Class<*>, body: MetaClassRegistry): MetaClass {
         val metaClass = original.create(theClass, body)
-        return when {
-          metaClass is KotlinAwareMetaClass -> {
-            metaClass
-          }
-
-          shouldWrapMetaClass(theClass) -> {
-            val wrapped = KotlinAwareMetaClass(metaClass)
-            wrapped.initialize()
-            wrapped
-          }
-
-          else -> {
-            metaClass
-          }
+        return if (metaClass !is KotlinAwareMetaClass && shouldWrapMetaClass(theClass)) {
+          KotlinAwareMetaClass(metaClass).apply { initialize() }
+        } else {
+          metaClass
         }
       }
     },
