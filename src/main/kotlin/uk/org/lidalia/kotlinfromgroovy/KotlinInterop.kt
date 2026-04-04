@@ -2,6 +2,7 @@
 
 package uk.org.lidalia.kotlinfromgroovy
 
+import groovy.lang.GString
 import groovy.lang.MissingMethodException
 import org.codehaus.groovy.runtime.InvokerHelper
 import org.codehaus.groovy.runtime.wrappers.GroovyObjectWrapper
@@ -276,6 +277,11 @@ private fun buildGroovyArgs(
   else -> arrayOf<Any?>(namedArgs, *positionalArgs)
 }
 
+private fun coerceGroovyType(value: Any, param: KParameter): Any = when {
+  value is GString && param.type.jvmErasure == String::class -> value.toString()
+  else -> value
+}
+
 private fun unwrapGroovyWrapper(value: Any): Any? = when (value) {
   is PojoWrapper -> value.unwrap()
   is GroovyObjectWrapper -> value.unwrap()
@@ -372,15 +378,16 @@ private fun resolveArgs(
         }
         paramMap[param] = null
       } else {
-        if (!param.type.jvmErasure.isInstance(unwrapped)) {
-          val typeDesc = describeValueType(unwrapped)
+        val coerced = coerceGroovyType(unwrapped, param)
+        if (!param.type.jvmErasure.isInstance(coerced)) {
+          val typeDesc = describeValueType(coerced)
           val expectedName = param.type.jvmErasure.simpleName
           throw IllegalArgumentException(
             "The $typeDesc does not conform to the expected type $expectedName",
           )
         }
-        if (unwrapped !== value) {
-          paramMap[param] = unwrapped
+        if (coerced !== value) {
+          paramMap[param] = coerced
         }
       }
     }

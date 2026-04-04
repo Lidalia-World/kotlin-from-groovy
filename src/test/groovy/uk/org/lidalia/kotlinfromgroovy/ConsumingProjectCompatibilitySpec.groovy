@@ -197,4 +197,25 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             classUnderTest.calls[0].arguments == [argument1: [key1: 'value1', key2: 'value2']]
     }
 
+    // Issue 10: Groovy GStrings (interpolated strings like "$var")
+    // should be coerced to String when passed to Kotlin methods
+    // expecting String parameters.
+
+    def 'GString is coerced to String when passed to Kotlin method with defaults'() {
+
+        given:
+            def classUnderTest = new ClassWithDefaultedArgumentsToMethods()
+            def name = 'world'
+
+        when:
+            classUnderTest.functionWithTwoArgumentsSecondDefaulted("hello $name")
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [
+                argument1: 'hello world',
+                argument2: 'argument2',
+            ]
+    }
+
 }
