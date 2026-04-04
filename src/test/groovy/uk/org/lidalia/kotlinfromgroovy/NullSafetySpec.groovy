@@ -1,5 +1,6 @@
 package uk.org.lidalia.kotlinfromgroovy
 
+import org.codehaus.groovy.runtime.wrappers.PojoWrapper
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
@@ -54,6 +55,20 @@ class NullSafetySpec extends Specification {
 
         when:
             new DataClass(null, 2, true)
+
+        then:
+            def exception = thrown(NullPointerException)
+            exception.message.toLowerCase().contains('null')
+    }
+
+    def 'PojoWrapper wrapping null on non-nullable parameter throws NullPointerException'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+            def wrapped = new PojoWrapper(null, String)
+
+        when:
+            classUnderTest.functionWithMultipleArguments(wrapped, 2, true)
 
         then:
             def exception = thrown(NullPointerException)
