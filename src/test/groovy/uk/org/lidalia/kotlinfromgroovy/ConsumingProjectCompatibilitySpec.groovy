@@ -239,4 +239,25 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             ]
     }
 
+    // Issue 12: Groovy callers may pass null for a non-null Kotlin
+    // parameter that has a default value. This is a Groovy convention
+    // meaning "use the default." The interop layer should use the
+    // Kotlin default instead of throwing NullPointerException.
+
+    def 'passing null to non-null param with default uses the default value'() {
+
+        given:
+            def classUnderTest = new ClassWithDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithTwoArgumentsBothDefaulted('explicit', null)
+
+        then:
+            notThrown(NullPointerException)
+            classUnderTest.calls[0].arguments == [
+                argument1: 'explicit',
+                argument2: 'argument2',
+            ]
+    }
+
 }

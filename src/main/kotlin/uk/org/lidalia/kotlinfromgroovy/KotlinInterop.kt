@@ -366,10 +366,16 @@ private fun resolveArgs(
     }
   }
 
-  // Validate argument types and nullability
+  // Validate argument types and nullability.
+  // When null is passed for a non-null param that has a default,
+  // remove it from the map so callBy uses the Kotlin default value.
+  // This matches Groovy's convention where null means "unspecified."
+  val paramsToRemove = mutableListOf<KParameter>()
   for ((param, value) in paramMap) {
     if (value == null) {
-      if (validateNullability && !param.type.isMarkedNullable) {
+      if (!param.type.isMarkedNullable && param.isOptional) {
+        paramsToRemove += param
+      } else if (validateNullability && !param.type.isMarkedNullable) {
         throw NullPointerException(
           "Null passed for non-null parameter '${param.name}'",
         )
@@ -377,7 +383,9 @@ private fun resolveArgs(
     } else {
       val unwrapped = unwrapGroovyWrapper(value)
       if (unwrapped == null) {
-        if (validateNullability && !param.type.isMarkedNullable) {
+        if (!param.type.isMarkedNullable && param.isOptional) {
+          paramsToRemove += param
+        } else if (validateNullability && !param.type.isMarkedNullable) {
           throw NullPointerException(
             "Null passed for non-null parameter '${param.name}'",
           )
@@ -398,6 +406,8 @@ private fun resolveArgs(
       }
     }
   }
+
+  paramsToRemove.forEach { paramMap.remove(it) }
 
   return paramMap
 }
