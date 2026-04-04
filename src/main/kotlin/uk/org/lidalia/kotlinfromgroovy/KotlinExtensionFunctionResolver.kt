@@ -49,19 +49,13 @@ internal object KotlinExtensionFunctionResolver {
   }
 
   private fun collectClasspathUrls(classLoader: ClassLoader): List<URL> {
-    val urls = mutableListOf<URL>()
-    var current: ClassLoader? = classLoader
-    while (current != null) {
-      if (current is URLClassLoader) {
-        urls.addAll(current.urLs)
-      }
-      current = current.parent
-    }
+    val urls = generateSequence<ClassLoader>(classLoader) { it.parent }
+      .filterIsInstance<URLClassLoader>()
+      .flatMap { it.urLs.asSequence() }
+      .toMutableList()
     if (urls.isEmpty()) {
       val cp = System.getProperty("java.class.path") ?: return urls
-      for (entry in cp.split(File.pathSeparator)) {
-        urls.add(File(entry).toURI().toURL())
-      }
+      cp.split(File.pathSeparator).mapTo(urls) { File(it).toURI().toURL() }
     }
     return urls
   }
