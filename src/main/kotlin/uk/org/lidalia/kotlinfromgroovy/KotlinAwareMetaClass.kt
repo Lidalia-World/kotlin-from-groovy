@@ -126,9 +126,7 @@ internal fun ensureKotlinAwareMetaClass(clazz: Class<*>) {
   val registry = GroovySystem.getMetaClassRegistry()
   val current = registry.getMetaClass(clazz)
   if (current !is KotlinAwareMetaClass) {
-    val wrapped = KotlinAwareMetaClass(current)
-    wrapped.initialize()
-    registry.setMetaClass(clazz, wrapped)
+    registry.setMetaClass(clazz, KotlinAwareMetaClass(current).apply { initialize() })
   }
 }
 
@@ -144,20 +142,10 @@ internal fun installGlobalMetaClassHandler() {
     object : MetaClassRegistry.MetaClassCreationHandle() {
       override fun createNormalMetaClass(theClass: Class<*>, body: MetaClassRegistry): MetaClass {
         val metaClass = original.create(theClass, body)
-        return when {
-          metaClass is KotlinAwareMetaClass -> {
-            metaClass
-          }
-
-          shouldWrapMetaClass(theClass) -> {
-            val wrapped = KotlinAwareMetaClass(metaClass)
-            wrapped.initialize()
-            wrapped
-          }
-
-          else -> {
-            metaClass
-          }
+        return if (metaClass !is KotlinAwareMetaClass && shouldWrapMetaClass(theClass)) {
+          KotlinAwareMetaClass(metaClass).apply { initialize() }
+        } else {
+          metaClass
         }
       }
     },
