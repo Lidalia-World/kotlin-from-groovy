@@ -167,6 +167,13 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   ): Expression? {
     if (expr.isSuperCall || expr.isThisCall) return null
     if (expr.isUsingAnonymousInnerClass) return null
+    // Non-static inner classes have an implicit enclosing instance
+    // parameter that constructWithNamedArgs cannot supply.
+    if (expr.type.outerClass != null &&
+      !java.lang.reflect.Modifier.isStatic(expr.type.modifiers)
+    ) {
+      return null
+    }
     if (containsSpreadExpression(expr.arguments)) return null
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
     val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)

@@ -9,6 +9,7 @@ import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstr
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.OpenClassWithDefaults
 import uk.org.lidalia.kotlinfromgroovy.testsupport.SimpleCallback
+import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovyOuterClassWithInnerClass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclassOfBaseWithPrivateMethod
 
 class ConsumingProjectCompatibilitySpec extends Specification {
@@ -310,6 +311,25 @@ class ConsumingProjectCompatibilitySpec extends Specification {
         then:
             notThrown(Exception)
             classUnderTest.calls[0].arguments == [values: [1, 2, 3, 5, 8]]
+    }
+
+    // Issue 16: Groovy non-static inner classes have an implicit enclosing
+    // instance parameter in their constructor. The AST transform must not
+    // rewrite these constructors into constructWithNamedArgs, because the
+    // enclosing instance is not passed as a regular argument.
+
+    def 'can construct Groovy non-static inner class with named args'() {
+
+        given:
+            def outer = new GroovyOuterClassWithInnerClass()
+
+        when:
+            def inner = outer.createInner('test', 42)
+
+        then:
+            notThrown(Exception)
+            inner.name == 'test'
+            inner.value == 42
     }
 
 }
