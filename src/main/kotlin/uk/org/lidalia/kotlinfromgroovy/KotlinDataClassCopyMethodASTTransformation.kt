@@ -24,6 +24,7 @@ import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.AbstractASTTransformation
 import org.codehaus.groovy.transform.GroovyASTTransformation
+import java.lang.reflect.Modifier
 
 private val kotlinInteropClass = ClassHelper.make("uk.org.lidalia.kotlinfromgroovy.KotlinInterop")
 
@@ -158,7 +159,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     // Non-static inner classes have an implicit enclosing instance
     // parameter that constructWithNamedArgs cannot supply.
     if (expr.type.outerClass != null &&
-      !java.lang.reflect.Modifier.isStatic(expr.type.modifiers)
+      !Modifier.isStatic(expr.type.modifiers)
     ) {
       return null
     }

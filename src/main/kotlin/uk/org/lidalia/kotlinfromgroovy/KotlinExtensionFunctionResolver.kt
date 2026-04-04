@@ -1,6 +1,7 @@
 package uk.org.lidalia.kotlinfromgroovy
 
 import java.io.File
+import java.lang.reflect.Modifier
 import java.net.URI
 import java.net.URL
 import java.net.URLClassLoader
@@ -111,8 +112,8 @@ internal object KotlinExtensionFunctionResolver {
       if (metadata.kind != 2) return
 
       clazz.declaredMethods.asSequence()
-        .filter { java.lang.reflect.Modifier.isPublic(it.modifiers) }
-        .filter { java.lang.reflect.Modifier.isStatic(it.modifiers) }
+        .filter { Modifier.isPublic(it.modifiers) }
+        .filter { Modifier.isStatic(it.modifiers) }
         .filter { !it.isSynthetic }
         .mapNotNull { method ->
           try {
