@@ -62,7 +62,26 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             ]
     }
 
-    // Issue 4: Groovy can pass null for the args parameter of
+    // Issue 4: PojoWrapper wrapping null should be treated as null,
+    // not as a PojoWrapper value. Groovy can wrap null in a PojoWrapper
+    // when casting (e.g. (String) null), and the type check must
+    // unwrap it to null rather than failing with a type mismatch.
+
+    def 'can call Kotlin method with PojoWrapper wrapping null on nullable param'() {
+
+        given:
+            def classUnderTest = new ClassWithDefaultedArgumentsToMethods()
+            def wrapped = new PojoWrapper(null, String)
+
+        when:
+            classUnderTest.functionWithOneNullableArgumentDefaultedToNotNull(wrapped)
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [argument1: null]
+    }
+
+    // Issue 5: Groovy can pass null for the args parameter of
     // invokeMethod; this should not cause a NullPointerException
     // inside KotlinAwareMetaClass. When null is passed, it should be
     // treated as "no arguments" so default parameter values are used.

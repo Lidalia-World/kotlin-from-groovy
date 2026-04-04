@@ -262,9 +262,9 @@ private fun buildGroovyArgs(
   else -> arrayOf<Any?>(namedArgs, *positionalArgs)
 }
 
-private fun unwrapGroovyWrapper(value: Any): Any = when (value) {
-  is PojoWrapper -> value.unwrap() as? Any ?: value
-  is GroovyObjectWrapper -> value.unwrap() as? Any ?: value
+private fun unwrapGroovyWrapper(value: Any): Any? = when (value) {
+  is PojoWrapper -> value.unwrap()
+  is GroovyObjectWrapper -> value.unwrap()
   else -> value
 }
 
@@ -350,15 +350,24 @@ private fun resolveArgs(
       }
     } else {
       val unwrapped = unwrapGroovyWrapper(value)
-      if (!param.type.jvmErasure.isInstance(unwrapped)) {
-        val typeDesc = describeValueType(unwrapped)
-        val expectedName = param.type.jvmErasure.simpleName
-        throw IllegalArgumentException(
-          "The $typeDesc does not conform to the expected type $expectedName",
-        )
-      }
-      if (unwrapped !== value) {
-        paramMap[param] = unwrapped
+      if (unwrapped == null) {
+        if (validateNullability && !param.type.isMarkedNullable) {
+          throw IllegalArgumentException(
+            "Null passed for non-null parameter '${param.name}'",
+          )
+        }
+        paramMap[param] = null
+      } else {
+        if (!param.type.jvmErasure.isInstance(unwrapped)) {
+          val typeDesc = describeValueType(unwrapped)
+          val expectedName = param.type.jvmErasure.simpleName
+          throw IllegalArgumentException(
+            "The $typeDesc does not conform to the expected type $expectedName",
+          )
+        }
+        if (unwrapped !== value) {
+          paramMap[param] = unwrapped
+        }
       }
     }
   }
