@@ -93,7 +93,26 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             instance.value == 'default'
     }
 
-    // Issue 6: Groovy can pass null for the args parameter of
+    // Issue 6: Groovy can pass null for the args Array parameter of
+    // invokeMethod; this should not cause a NullPointerException
+    // inside KotlinAwareMetaClass. When null is passed as Object[],
+    // it should be treated as "no arguments" so default parameter
+    // values are used.
+
+    def 'invokeMethod handles null args array for method with defaults'() {
+
+        given:
+            def instance = new ClassWithDefaultedArgumentsToMethods()
+
+        when:
+            instance.metaClass.invokeMethod(instance, 'functionWithOneDefaultedArgument', (Object[]) null)
+
+        then:
+            notThrown(Exception)
+            instance.calls[0].arguments == [argument1: 'argument1']
+    }
+
+    // Issue 7: Groovy can pass null for the args parameter of
     def 'invokeMethod handles null args for method with defaults'() {
 
         given:

@@ -11,27 +11,28 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
   override fun invokeMethod(
     target: Any,
     name: String,
-    args: Array<Any?>,
+    args: Array<Any?>?,
   ): Any? {
+    val safeArgs = args ?: emptyArray()
     // For Kotlin classes, check for exact method match before delegating to Groovy.
     // Groovy silently coerces missing args to null instead of throwing
     // MissingMethodException, which bypasses default parameter support.
     if (target.javaClass.isAnnotationPresent(Metadata::class.java)) {
-      val argTypes = args.map { it?.javaClass ?: Any::class.java }.toTypedArray()
+      val argTypes = safeArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
       val metaMethod = delegate.pickMethod(name, argTypes)
-      if (metaMethod == null || metaMethod.nativeParameterTypes.size != args.size) {
+      if (metaMethod == null || metaMethod.nativeParameterTypes.size != safeArgs.size) {
         return fallbackToKotlinReflect(
           target,
           name,
-          args,
-          MissingMethodException(name, target.javaClass, args),
+          safeArgs,
+          MissingMethodException(name, target.javaClass, safeArgs),
         )
       }
     }
     return try {
-      super.invokeMethod(target, name, args)
+      super.invokeMethod(target, name, safeArgs)
     } catch (e: MissingMethodException) {
-      fallbackToKotlinReflect(target, name, args, e)
+      fallbackToKotlinReflect(target, name, safeArgs, e)
     }
   }
 
