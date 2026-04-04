@@ -336,9 +336,24 @@ private fun resolveArgs(
     // Positional args first (standard behavior)
     for ((index, value) in positionalArgs.withIndex()) {
       if (index >= params.size) {
+        // Check if the last param is vararg — pack remaining args into it
+        val lastParam = params.last()
+        if (lastParam.isVararg) {
+          val varargValues = positionalArgs.drop(params.size - 1)
+          paramMap[lastParam] = toTypedVarargArray(lastParam, varargValues)
+          assignedParams += lastParam
+          break
+        }
         throw IllegalArgumentException("Too many arguments")
       }
       val param = params[index]
+      if (param.isVararg && index == params.size - 1 && positionalArgs.size > params.size) {
+        // Pack remaining positional args into the vararg parameter
+        val varargValues = positionalArgs.drop(index)
+        paramMap[param] = toTypedVarargArray(param, varargValues)
+        assignedParams += param
+        break
+      }
       paramMap[param] = value
       assignedParams += param
     }
@@ -412,6 +427,13 @@ private fun resolveArgs(
   paramsToRemove.forEach { paramMap.remove(it) }
 
   return paramMap
+}
+
+private fun toTypedVarargArray(param: KParameter, values: List<Any?>): Any {
+  val elementType = param.type.arguments.first().type?.jvmErasure?.java ?: Any::class.java
+  val typedArray = java.lang.reflect.Array.newInstance(elementType, values.size)
+  values.forEachIndexed { i, v -> java.lang.reflect.Array.set(typedArray, i, v) }
+  return typedArray
 }
 
 private fun describeValueType(value: Any): String = when (value) {

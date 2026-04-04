@@ -5,6 +5,7 @@ import org.codehaus.groovy.ast.AnnotatedNode
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer
 import org.codehaus.groovy.ast.ClassCodeVisitorSupport
 import org.codehaus.groovy.ast.ClassHelper
+import org.codehaus.groovy.ast.ClassNode
 import org.codehaus.groovy.ast.MethodNode
 import org.codehaus.groovy.ast.expr.ArgumentListExpression
 import org.codehaus.groovy.ast.expr.ArrayExpression
@@ -167,7 +168,18 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   ): Expression? {
     if (expr.isSuperCall || expr.isThisCall) return null
     if (expr.isUsingAnonymousInnerClass) return null
+    // Non-static inner classes have an implicit enclosing instance
+    // parameter that constructWithNamedArgs cannot supply.
+    if (expr.type.outerClass != null &&
+      !java.lang.reflect.Modifier.isStatic(expr.type.modifiers)
+    ) {
+      return null
+    }
     if (containsSpreadExpression(expr.arguments)) return null
+    // Positional-only constructor calls on non-Kotlin classes don't need
+    // transformation. Transforming them loses compile-time type info
+    // (e.g. casts on null args), causing ambiguity with overloaded constructors.
+    if (precomputedInfo == null && !isKotlinClassNode(expr.type)) return null
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
     val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
     val namedFirst = precomputedInfo?.namedFirst ?: false
@@ -200,6 +212,9 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     is TupleExpression -> args.expressions.toList()
     else -> emptyList()
   }
+
+  private fun isKotlinClassNode(classNode: ClassNode): Boolean =
+    classNode.annotations.any { it.classNode.name == "kotlin.Metadata" }
 
   private fun methodNeedsTransformation(node: MethodNode): Boolean {
     var found = false

@@ -5,10 +5,12 @@ import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassThatThrowsInConstructor
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
+import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithOverloadedConstructors
 import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstructor
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.OpenClassWithDefaults
 import uk.org.lidalia.kotlinfromgroovy.testsupport.SimpleCallback
+import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovyOuterClassWithInnerClass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclassOfBaseWithPrivateMethod
 
 class ConsumingProjectCompatibilitySpec extends Specification {
@@ -293,6 +295,89 @@ class ConsumingProjectCompatibilitySpec extends Specification {
         then:
             notThrown(Exception)
             classUnderTest.calls[0].arguments == [options: []]
+    }
+
+    // Issue 15: Kotlin vararg parameters should accept multiple positional
+    // arguments from Groovy. resolveArgs must pack trailing positional
+    // args into the vararg array instead of throwing "Too many arguments".
+
+    def 'can call Kotlin method with varargs and multiple arguments'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithVarargsAny(1, 2, 3, 5, 8)
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [values: [1, 2, 3, 5, 8]]
+    }
+
+    // Issue 16: Kotlin typed vararg parameters (e.g. vararg options: String)
+    // must work when called with multiple arguments from Groovy. The packed
+    // array must match the expected element type, not be Object[].
+
+    def 'can call Kotlin method with typed varargs and multiple arguments'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithVarargs('a', 'b', 'c')
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [options: ['a', 'b', 'c']]
+    }
+
+    // Issue 17: The getAt extension for Kotlin destructuring must not
+    // shadow Groovy's built-in Map.getAt(key) when the object is a Map.
+
+    def 'can use integer key to access map via getAt operator'() {
+
+        given:
+            def map = [200: 42, 500: 3]
+
+        when:
+            def result = map[200]
+
+        then:
+            result == 42
+    }
+
+    // Issue 17: Groovy non-static inner classes have an implicit enclosing
+    // instance parameter in their constructor. The AST transform must not
+    // rewrite these constructors into constructWithNamedArgs, because the
+    // enclosing instance is not passed as a regular argument.
+
+    def 'can construct Groovy non-static inner class with named args'() {
+
+        given:
+            def outer = new GroovyOuterClassWithInnerClass()
+
+        when:
+            def inner = outer.createInner('test', 42)
+
+        then:
+            notThrown(Exception)
+            inner.name == 'test'
+            inner.value == 42
+    }
+
+    // Issue 18: Java classes with overloaded constructors and null args
+    // must not be transformed when using positional-only args. The AST
+    // transform loses cast type information, causing ambiguity errors.
+
+    def 'can construct Java class with overloaded constructors and null arg'() {
+
+        when:
+            def instance = new JavaClassWithOverloadedConstructors('type', (String) null)
+
+        then:
+            notThrown(Exception)
+            instance.type == 'type'
+            instance.value == null
     }
 
 }
