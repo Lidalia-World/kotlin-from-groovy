@@ -6,6 +6,8 @@ import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassThatThrowsInConstructor
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstructor
+import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclass
+import uk.org.lidalia.kotlinfromgroovy.testsupport.OpenClassWithDefaults
 
 class ConsumingProjectCompatibilitySpec extends Specification {
 
@@ -65,6 +67,33 @@ class ConsumingProjectCompatibilitySpec extends Specification {
     // inside KotlinAwareMetaClass. When null is passed, it should be
     // treated as "no arguments" so default parameter values are used.
 
+    // Issue 5: Groovy classes that extend a Kotlin class and call super()
+    // should work correctly. The AST transform must not rewrite super()
+    // or this() constructor delegation calls into constructWithNamedArgs,
+    // because those calls initialise the current object's parent — they
+    // do not create a new instance.
+
+    def 'Groovy subclass can call super() on a Kotlin open class'() {
+
+        when:
+            def instance = new GroovySubclass('custom')
+
+        then:
+            notThrown(Exception)
+            instance.value == 'custom'
+    }
+
+    def 'Groovy subclass can call super() with defaults on a Kotlin open class'() {
+
+        when:
+            def instance = new GroovySubclass()
+
+        then:
+            notThrown(Exception)
+            instance.value == 'default'
+    }
+
+    // Issue 6: Groovy can pass null for the args parameter of
     def 'invokeMethod handles null args for method with defaults'() {
 
         given:

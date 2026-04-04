@@ -154,6 +154,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     expr: ConstructorCallExpression,
     precomputedInfo: NamedArgsInfo?,
   ): Expression? {
+    if (expr.isSuperCall || expr.isThisCall) return null
     if (containsSpreadExpression(expr.arguments)) return null
     val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
     val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
