@@ -1,6 +1,7 @@
 package uk.org.lidalia.kotlinfromgroovy
 
 import groovy.lang.DelegatingMetaClass
+import groovy.lang.GroovyObject
 import groovy.lang.GroovySystem
 import groovy.lang.MetaClass
 import groovy.lang.MetaClassRegistry
@@ -32,7 +33,14 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     return try {
       super.invokeMethod(target, name, safeArgs)
     } catch (e: MissingMethodException) {
-      fallbackToKotlinReflect(target, name, safeArgs, e)
+      // Only fall back for the method we're trying to call, not for
+      // MissingMethodExceptions thrown inside the method's execution
+      // (e.g. private superclass methods called within the method body).
+      if (e.method == name) {
+        fallbackToKotlinReflect(target, name, safeArgs, e)
+      } else {
+        throw e
+      }
     }
   }
 
@@ -46,12 +54,16 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     else -> try {
       super.invokeMethod(target, name, args)
     } catch (e: MissingMethodException) {
-      @Suppress("UNCHECKED_CAST")
-      val argsArray: Array<Any?> = when (args) {
-        is Array<*> -> args as Array<Any?>
-        else -> arrayOf(args)
+      if (e.method == name) {
+        @Suppress("UNCHECKED_CAST")
+        val argsArray: Array<Any?> = when (args) {
+          is Array<*> -> args as Array<Any?>
+          else -> arrayOf(args)
+        }
+        fallbackToKotlinReflect(target, name, argsArray, e)
+      } else {
+        throw e
       }
-      fallbackToKotlinReflect(target, name, argsArray, e)
     }
   }
 
@@ -92,8 +104,21 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
   }
 }
 
+// Groovy's indy Selector (invokedynamic dispatch) only recognizes
+// MetaClassImpl, ClosureMetaClass, and ExpandoMetaClass by exact class
+// match. DelegatingMetaClass (our KotlinAwareMetaClass's parent) is not
+// recognized, which disables the normal method selection path. This
+// causes private superclass method calls to fail because the fallback
+// 3-arg invokeMethod path loses sender class information needed for
+// private method resolution. Groovy classes (GroovyObject implementors)
+// are the only classes affected, since they use dynamic dispatch for
+// private methods. Java and Kotlin classes use direct invocation.
+private fun shouldWrapMetaClass(theClass: Class<*>): Boolean =
+  !GroovyObject::class.java.isAssignableFrom(theClass)
+
 internal fun ensureKotlinAwareMetaClass(clazz: Class<*>) {
   installGlobalMetaClassHandler()
+  if (!shouldWrapMetaClass(clazz)) return
   val registry = GroovySystem.getMetaClassRegistry()
   val current = registry.getMetaClass(clazz)
   if (current !is KotlinAwareMetaClass) {
@@ -115,12 +140,20 @@ internal fun installGlobalMetaClassHandler() {
     object : MetaClassRegistry.MetaClassCreationHandle() {
       override fun createNormalMetaClass(theClass: Class<*>, body: MetaClassRegistry): MetaClass {
         val metaClass = original.create(theClass, body)
-        return if (metaClass is KotlinAwareMetaClass) {
-          metaClass
-        } else {
-          val wrapped = KotlinAwareMetaClass(metaClass)
-          wrapped.initialize()
-          wrapped
+        return when {
+          metaClass is KotlinAwareMetaClass -> {
+            metaClass
+          }
+
+          shouldWrapMetaClass(theClass) -> {
+            val wrapped = KotlinAwareMetaClass(metaClass)
+            wrapped.initialize()
+            wrapped
+          }
+
+          else -> {
+            metaClass
+          }
         }
       }
     },

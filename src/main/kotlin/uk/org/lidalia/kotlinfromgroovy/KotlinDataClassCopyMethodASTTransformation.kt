@@ -3,6 +3,7 @@ package uk.org.lidalia.kotlinfromgroovy
 import org.codehaus.groovy.ast.ASTNode
 import org.codehaus.groovy.ast.AnnotatedNode
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer
+import org.codehaus.groovy.ast.ClassCodeVisitorSupport
 import org.codehaus.groovy.ast.ClassHelper
 import org.codehaus.groovy.ast.MethodNode
 import org.codehaus.groovy.ast.expr.ArgumentListExpression
@@ -34,14 +35,21 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
 
       override fun visitMethod(node: MethodNode) {
         if (node.hasCompileStaticAnnotation()) return
+        if (!methodNeedsTransformation(node)) return
         super.visitMethod(node)
       }
 
       override fun transform(expr: Expression?): Expression? {
+        // Return calls on this/super unchanged — running super.transform
+        // on them disrupts Groovy's static dispatch for private methods.
+        if (expr is MethodCallExpression && isCallOnThis(expr)) {
+          return expr
+        }
+
         // Detect named args before super.transform, which may convert
         // NamedArgumentListExpression to plain MapExpression
         val precomputedInfo = when {
-          expr is MethodCallExpression && !isCallOnThis(expr) -> {
+          expr is MethodCallExpression -> {
             findNamedArgs(expr.arguments)
           }
 
@@ -59,7 +67,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
             // Only transform method calls with named args.
             // Positional-only calls are handled at runtime by KotlinAwareMetaClass,
             // avoiding bytecode bloat in large files.
-            if (precomputedInfo != null && !isCallOnThis(withTransformedChildren)) {
+            if (precomputedInfo != null) {
               transformMethodCall(withTransformedChildren, precomputedInfo)
                 ?: withTransformedChildren
             } else {
@@ -80,6 +88,9 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     }
     source.ast.classes
       .filter { !it.hasCompileStaticAnnotation() }
+      .filter { classNode ->
+        classNode.methods.any { !it.hasCompileStaticAnnotation() && methodNeedsTransformation(it) }
+      }
       .forEach { transformer.visitClass(it) }
   }
 
@@ -188,6 +199,26 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   private fun extractPositionalArgs(args: Expression): List<Expression> = when (args) {
     is TupleExpression -> args.expressions.toList()
     else -> emptyList()
+  }
+
+  private fun methodNeedsTransformation(node: MethodNode): Boolean {
+    var found = false
+    val scanner = object : ClassCodeVisitorSupport() {
+      override fun getSourceUnit(): SourceUnit? = null
+
+      override fun visitConstructorCallExpression(call: ConstructorCallExpression) {
+        found = true
+      }
+
+      override fun visitMethodCallExpression(call: MethodCallExpression) {
+        if (!isCallOnThis(call)) {
+          found = true
+        }
+        super.visitMethodCallExpression(call)
+      }
+    }
+    node.code?.visit(scanner)
+    return found
   }
 }
 

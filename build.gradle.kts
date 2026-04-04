@@ -14,7 +14,6 @@ plugins {
 }
 
 group = "uk.org.lidalia"
-version = "0.1.5"
 
 buildscript {
   repositories {

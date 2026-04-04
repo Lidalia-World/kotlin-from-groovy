@@ -9,6 +9,7 @@ import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstr
 import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclass
 import uk.org.lidalia.kotlinfromgroovy.testsupport.OpenClassWithDefaults
 import uk.org.lidalia.kotlinfromgroovy.testsupport.SimpleCallback
+import uk.org.lidalia.kotlinfromgroovy.testsupport.GroovySubclassOfBaseWithPrivateMethod
 
 class ConsumingProjectCompatibilitySpec extends Specification {
 
@@ -258,6 +259,23 @@ class ConsumingProjectCompatibilitySpec extends Specification {
                 argument1: 'explicit',
                 argument2: 'argument2',
             ]
+    }
+
+    // Issue 13: Private methods in Groovy traits must remain callable
+    // from within the trait. The KotlinAwareMetaClass global handler
+    // must not interfere with Groovy's internal trait dispatch.
+
+    def 'can call private method in superclass from subclass instance'() {
+
+        given:
+            def instance = new GroovySubclassOfBaseWithPrivateMethod()
+
+        when:
+            def result = instance.callPrivateMethod('hello')
+
+        then:
+            notThrown(Exception)
+            result == 'processed: hello'
     }
 
 }
