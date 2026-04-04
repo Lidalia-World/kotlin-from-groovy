@@ -301,95 +301,146 @@ private fun resolveArgs(
   val paramMap = mutableMapOf<KParameter, Any?>()
   val assignedParams = mutableSetOf<KParameter>()
 
-  // Validate named arg names
-  for (name in namedArgs.keys) {
-    val param = params.find { it.name == name }
-      ?: throw UnknownNamedParameterException(name)
-  }
+  validateNamedArgNames(params, namedArgs)
 
   if (namedFirst && positionalArgs.isNotEmpty() && namedArgs.isNotEmpty()) {
-    // Named args were written before positional args in source.
-    // Assign named args by name first, then positional args fill slots
-    // after the highest-indexed named parameter.
-    for ((name, value) in namedArgs) {
-      val param = params.find { it.name == name }!!
-      paramMap[param] = value
-      assignedParams += param
-    }
-
-    val highestNamedIndex = namedArgs.keys
-      .map { name -> params.indexOfFirst { it.name == name } }
-      .max()
-
-    val slotsAfterNamed = params
-      .filterIndexed { index, param -> index > highestNamedIndex && param !in assignedParams }
-
-    if (positionalArgs.size > slotsAfterNamed.size) {
-      throw IllegalArgumentException("Mixing named and positioned arguments is not allowed")
-    }
-
-    for ((param, value) in slotsAfterNamed.zip(positionalArgs.toList())) {
-      paramMap[param] = value
-      assignedParams += param
-    }
+    assignNamedFirst(params, namedArgs, positionalArgs, paramMap, assignedParams)
   } else {
-    // Positional args first (standard behavior)
-    for ((index, value) in positionalArgs.withIndex()) {
-      if (index >= params.size) {
-        // Check if the last param is vararg — pack remaining args into it
-        val lastParam = params.last()
-        if (lastParam.isVararg) {
-          val varargValues = positionalArgs.drop(params.size - 1)
-          paramMap[lastParam] = toTypedVarargArray(lastParam, varargValues)
-          assignedParams += lastParam
-          break
-        }
-        throw IllegalArgumentException("Too many arguments")
-      }
-      val param = params[index]
-      if (param.isVararg && index == params.size - 1 && positionalArgs.size > params.size) {
-        // Pack remaining positional args into the vararg parameter
-        val varargValues = positionalArgs.drop(index)
-        paramMap[param] = toTypedVarargArray(param, varargValues)
-        assignedParams += param
-        break
-      }
-      paramMap[param] = value
-      assignedParams += param
-    }
-
-    for ((name, value) in namedArgs) {
-      val param = params.find { it.name == name }!!
-      if (param in assignedParams) {
-        throw IllegalArgumentException("An argument is already passed for this parameter")
-      }
-      paramMap[param] = value
-      assignedParams += param
-    }
+    assignPositionalFirst(params, namedArgs, positionalArgs, paramMap, assignedParams)
   }
 
-  // Check for missing required params.
+  fillMissingRequiredParams(params, assignedParams, paramMap)
+  validateAndCoerceArgs(paramMap, validateNullability)
+
+  return paramMap
+}
+
+private fun validateNamedArgNames(
+  params: List<KParameter>,
+  namedArgs: LinkedHashMap<String, Any?>,
+) {
+  namedArgs.keys.forEach { name ->
+    params.find { it.name == name }
+      ?: throw UnknownNamedParameterException(name)
+  }
+}
+
+private fun assignNamedFirst(
+  params: List<KParameter>,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  paramMap: MutableMap<KParameter, Any?>,
+  assignedParams: MutableSet<KParameter>,
+) {
+  // Named args were written before positional args in source.
+  // Assign named args by name first, then positional args fill slots
+  // after the highest-indexed named parameter.
+  namedArgs.forEach { (name, value) ->
+    val param = params.find { it.name == name }!!
+    paramMap[param] = value
+    assignedParams += param
+  }
+
+  val highestNamedIndex = namedArgs.keys
+    .map { name -> params.indexOfFirst { it.name == name } }
+    .max()
+
+  val slotsAfterNamed = params
+    .filterIndexed { index, param -> index > highestNamedIndex && param !in assignedParams }
+
+  if (positionalArgs.size > slotsAfterNamed.size) {
+    throw IllegalArgumentException("Mixing named and positioned arguments is not allowed")
+  }
+
+  slotsAfterNamed.zip(positionalArgs.toList()).forEach { (param, value) ->
+    paramMap[param] = value
+    assignedParams += param
+  }
+}
+
+private fun assignPositionalFirst(
+  params: List<KParameter>,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  paramMap: MutableMap<KParameter, Any?>,
+  assignedParams: MutableSet<KParameter>,
+) {
+  assignPositionalArgs(params, positionalArgs, paramMap, assignedParams)
+
+  namedArgs.forEach { (name, value) ->
+    val param = params.find { it.name == name }!!
+    if (param in assignedParams) {
+      throw IllegalArgumentException("An argument is already passed for this parameter")
+    }
+    paramMap[param] = value
+    assignedParams += param
+  }
+}
+
+private fun assignPositionalArgs(
+  params: List<KParameter>,
+  positionalArgs: Array<Any?>,
+  paramMap: MutableMap<KParameter, Any?>,
+  assignedParams: MutableSet<KParameter>,
+) {
+  val lastParam = params.lastOrNull()
+  val varargIndex = if (lastParam?.isVararg == true) params.size - 1 else -1
+
+  when {
+    varargIndex >= 0 && positionalArgs.size > varargIndex -> {
+      // Assign non-vararg positional args, then pack remainder into vararg
+      positionalArgs.take(varargIndex).forEachIndexed { index, value ->
+        paramMap[params[index]] = value
+        assignedParams += params[index]
+      }
+      paramMap[lastParam!!] = toTypedVarargArray(lastParam, positionalArgs.drop(varargIndex))
+      assignedParams += lastParam
+    }
+
+    positionalArgs.size <= params.size -> {
+      positionalArgs.forEachIndexed { index, value ->
+        paramMap[params[index]] = value
+        assignedParams += params[index]
+      }
+    }
+
+    else -> {
+      throw IllegalArgumentException("Too many arguments")
+    }
+  }
+}
+
+private fun fillMissingRequiredParams(
+  params: List<KParameter>,
+  assignedParams: Set<KParameter>,
+  paramMap: MutableMap<KParameter, Any?>,
+) {
   // Nullable params without defaults are filled with null to match
   // Groovy's behavior of coercing omitted trailing args to null.
-  for (param in params) {
-    if (param !in assignedParams && !param.isOptional) {
-      if (param.isVararg) {
-        // Vararg params are implicitly optional — default to empty array
-      } else if (param.type.isMarkedNullable) {
+  // Vararg params are implicitly optional — default to empty array.
+  params
+    .filter { it !in assignedParams && !it.isOptional && !it.isVararg }
+    .forEach { param ->
+      if (param.type.isMarkedNullable) {
         paramMap[param] = null
       } else {
         throw IllegalArgumentException("No value passed for parameter '${param.name}'")
       }
     }
-  }
+}
 
+private fun validateAndCoerceArgs(
+  paramMap: MutableMap<KParameter, Any?>,
+  validateNullability: Boolean,
+) {
   // Validate argument types and nullability.
   // When null is passed for a non-null param that has a default,
   // remove it from the map so callBy uses the Kotlin default value.
   // This matches Groovy's convention where null means "unspecified."
   val paramsToRemove = mutableListOf<KParameter>()
-  for ((param, value) in paramMap) {
-    if (value == null) {
+  paramMap.forEach { (param, value) ->
+    val effective = value?.let { unwrapGroovyWrapper(it) }
+    if (effective == null) {
       if (!param.type.isMarkedNullable && param.isOptional) {
         paramsToRemove += param
       } else if (validateNullability && !param.type.isMarkedNullable) {
@@ -397,36 +448,25 @@ private fun resolveArgs(
           "Null passed for non-null parameter '${param.name}'",
         )
       }
-    } else {
-      val unwrapped = unwrapGroovyWrapper(value)
-      if (unwrapped == null) {
-        if (!param.type.isMarkedNullable && param.isOptional) {
-          paramsToRemove += param
-        } else if (validateNullability && !param.type.isMarkedNullable) {
-          throw NullPointerException(
-            "Null passed for non-null parameter '${param.name}'",
-          )
-        }
+      if (value != null) {
         paramMap[param] = null
-      } else {
-        val coerced = coerceGroovyType(unwrapped, param)
-        if (!param.type.jvmErasure.isInstance(coerced)) {
-          val typeDesc = describeValueType(coerced)
-          val expectedName = param.type.jvmErasure.simpleName
-          throw IllegalArgumentException(
-            "The $typeDesc does not conform to the expected type $expectedName",
-          )
-        }
-        if (coerced !== value) {
-          paramMap[param] = coerced
-        }
+      }
+    } else {
+      val coerced = coerceGroovyType(effective, param)
+      if (!param.type.jvmErasure.isInstance(coerced)) {
+        val typeDesc = describeValueType(coerced)
+        val expectedName = param.type.jvmErasure.simpleName
+        throw IllegalArgumentException(
+          "The $typeDesc does not conform to the expected type $expectedName",
+        )
+      }
+      if (coerced !== value) {
+        paramMap[param] = coerced
       }
     }
   }
 
   paramsToRemove.forEach { paramMap.remove(it) }
-
-  return paramMap
 }
 
 private fun toTypedVarargArray(param: KParameter, values: List<Any?>): Any {
