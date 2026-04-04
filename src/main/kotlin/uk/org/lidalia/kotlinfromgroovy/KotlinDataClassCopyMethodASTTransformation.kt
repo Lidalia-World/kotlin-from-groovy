@@ -122,13 +122,13 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   }
 
   private fun detectNamedFirst(mapExpr: MapExpression, positional: List<Expression>): Boolean {
-    if (positional.isEmpty() || mapExpr.mapEntryExpressions.isEmpty()) return false
-    val firstNamedLine = mapExpr.mapEntryExpressions.first().lineNumber
-    val firstNamedCol = mapExpr.mapEntryExpressions.first().columnNumber
-    val firstPositionalLine = positional.first().lineNumber
-    val firstPositionalCol = positional.first().columnNumber
-    return firstNamedLine < firstPositionalLine ||
-      (firstNamedLine == firstPositionalLine && firstNamedCol < firstPositionalCol)
+    val firstNamed = mapExpr.mapEntryExpressions.firstOrNull()
+    val firstPos = positional.firstOrNull()
+    return when {
+      firstNamed == null || firstPos == null -> false
+      firstNamed.lineNumber != firstPos.lineNumber -> firstNamed.lineNumber < firstPos.lineNumber
+      else -> firstNamed.columnNumber < firstPos.columnNumber
+    }
   }
 
   private fun transformMethodCall(
