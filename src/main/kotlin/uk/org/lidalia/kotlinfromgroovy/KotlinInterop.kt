@@ -352,7 +352,7 @@ private fun resolveArgs(
       val unwrapped = unwrapGroovyWrapper(value)
       if (unwrapped == null) {
         if (validateNullability && !param.type.isMarkedNullable) {
-          throw NullPointerException(
+          throw IllegalArgumentException(
             "Null passed for non-null parameter '${param.name}'",
           )
         }
