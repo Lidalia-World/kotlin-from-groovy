@@ -4,6 +4,10 @@ package uk.org.lidalia.kotlinfromgroovy
 
 import groovy.lang.MissingMethodException
 import org.codehaus.groovy.runtime.InvokerHelper
+import org.codehaus.groovy.runtime.wrappers.GroovyObjectWrapper
+import org.codehaus.groovy.runtime.wrappers.PojoWrapper
+import java.lang.reflect.InvocationTargetException
+import kotlin.reflect.KCallable
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.primaryConstructor
@@ -19,31 +23,53 @@ fun callMethodWithNamedArgs(
 ): Any? {
   ensureKotlinAwareMetaClass(target.javaClass)
 
-  // First try Groovy's default behavior
-  try {
-    if (namedArgs.isEmpty()) {
-      // Use pickMethod with param count check to avoid Groovy coercing
-      // missing args to null (which violates Kotlin null safety)
-      val argTypes = positionalArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
-      val metaMethod = InvokerHelper.getMetaClass(target).pickMethod(methodName, argTypes)
-      if (metaMethod != null && metaMethod.nativeParameterTypes.size == positionalArgs.size) {
-        return metaMethod.invoke(target, positionalArgs)
+  // When there are named args, try Kotlin reflection first to preserve
+  // namedFirst ordering (which is lost if we go through Groovy dispatch).
+  if (namedArgs.isNotEmpty()) {
+    // When namedFirst=true, the source-level ordering of named vs positional
+    // args matters, and only Kotlin reflection preserves it. Try Kotlin first.
+    // When namedFirst=false, Groovy dispatch works and correctly handles
+    // methods that take Map as first arg (Groovy convention).
+    if (namedFirst) {
+      try {
+        return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+      } catch (_: MissingMethodException) {
+        try {
+          return resolveKotlinExtensionCall(
+            target,
+            methodName,
+            namedArgs,
+            positionalArgs,
+            namedFirst,
+          )
+        } catch (_: MissingMethodException) {
+          // Named arg keys didn't match any parameter names — likely a literal
+          // map value, not actual named args. Fall through to Groovy dispatch.
+        }
       }
-    } else {
-      val groovyArgs = if (positionalArgs.isEmpty()) {
-        arrayOf<Any?>(namedArgs)
-      } else {
-        arrayOf<Any?>(namedArgs, *positionalArgs)
-      }
-      return InvokerHelper.invokeMethod(target, methodName, groovyArgs)
     }
-  } catch (_: MissingMethodException) {
-    // Fall back to Kotlin named-arg resolution
+    val groovyArgs = if (positionalArgs.isEmpty()) {
+      arrayOf<Any?>(namedArgs)
+    } else {
+      arrayOf<Any?>(namedArgs, *positionalArgs)
+    }
+    try {
+      return InvokerHelper.invokeMethod(target, methodName, groovyArgs)
+    } catch (_: MissingMethodException) {
+      // Fall back to Kotlin named-arg resolution
+    }
+  }
+
+  // Positional-only: use pickMethod to avoid Groovy coercing missing args to null
+  val argTypes = positionalArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
+  val metaMethod = InvokerHelper.getMetaClass(target).pickMethod(methodName, argTypes)
+  if (metaMethod != null && metaMethod.nativeParameterTypes.size == positionalArgs.size) {
+    return metaMethod.invoke(target, positionalArgs)
   }
 
   // If single positional arg is a Map, it may be named args that the AST
   // transform couldn't detect (e.g. in Spock expect blocks)
-  if (namedArgs.isEmpty() && positionalArgs.size == 1 && positionalArgs[0] is Map<*, *>) {
+  if (positionalArgs.size == 1 && positionalArgs[0] is Map<*, *>) {
     @Suppress("UNCHECKED_CAST")
     val mapArg = positionalArgs[0] as LinkedHashMap<String, Any?>
     try {
@@ -58,7 +84,6 @@ fun callMethodWithNamedArgs(
   try {
     return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
   } catch (_: MissingMethodException) {
-    // Method not found — try extension functions
     return resolveKotlinExtensionCall(target, methodName, namedArgs, positionalArgs, namedFirst)
   }
 }
@@ -83,7 +108,12 @@ fun constructWithNamedArgs(
 
   val kClass = clazz.kotlin
   val constructor = kClass.primaryConstructor
-    ?: error("Class ${clazz.simpleName} has no primary constructor")
+  if (constructor == null) {
+    // Java class or class without primary constructor — use Groovy dispatch
+    val groovyArgs = buildGroovyArgs(namedArgs, positionalArgs)
+    @Suppress("UNCHECKED_CAST")
+    return InvokerHelper.invokeConstructorOf(clazz, groovyArgs) as Any
+  }
 
   val paramMap = resolveArgs(
     constructor.parameters,
@@ -95,7 +125,7 @@ fun constructWithNamedArgs(
 
   constructor.isAccessible = true
   @Suppress("UNCHECKED_CAST")
-  return constructor.callBy(paramMap) as Any
+  return callByUnwrapping(constructor, paramMap) as Any
 }
 
 internal fun resolveKotlinMethodCall(
@@ -138,12 +168,23 @@ internal fun resolveKotlinMethodCall(
       paramMap[instanceParam] = target
 
       function.isAccessible = true
-      return function.callBy(paramMap)
+      return callByUnwrapping(function, paramMap)
     } catch (e: IllegalArgumentException) {
       errors += e
     }
   }
 
+  // If all errors are "unknown parameter name" AND there are positional args,
+  // the named args likely represent a literal map value rather than actual named
+  // arguments. Signal this as a missing method so callers can fall back to Groovy
+  // dispatch. Without positional args, it's genuinely a wrong named arg error.
+  if (positionalArgs.isNotEmpty() && errors.all { it is UnknownNamedParameterException }) {
+    throw MissingMethodException(
+      methodName,
+      target.javaClass,
+      arrayOf<Any?>(namedArgs, *positionalArgs),
+    )
+  }
   throw errors.first()
 }
 
@@ -187,13 +228,44 @@ internal fun resolveKotlinExtensionCall(
       paramMap[receiverParam] = target
 
       function.isAccessible = true
-      return function.callBy(paramMap)
+      return callByUnwrapping(function, paramMap)
     } catch (e: IllegalArgumentException) {
       errors += e
     }
   }
 
+  if (errors.all { it is UnknownNamedParameterException }) {
+    throw MissingMethodException(
+      methodName,
+      target.javaClass,
+      arrayOf<Any?>(namedArgs, *positionalArgs),
+    )
+  }
   throw errors.first()
+}
+
+internal class UnknownNamedParameterException(name: String) :
+  IllegalArgumentException("Cannot find a parameter with this name: $name")
+
+private fun callByUnwrapping(callable: KCallable<*>, paramMap: Map<KParameter, Any?>): Any? = try {
+  callable.callBy(paramMap)
+} catch (e: InvocationTargetException) {
+  throw e.cause ?: e
+}
+
+private fun buildGroovyArgs(
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+): Array<Any?> = when {
+  namedArgs.isEmpty() -> positionalArgs
+  positionalArgs.isEmpty() -> arrayOf<Any?>(namedArgs)
+  else -> arrayOf<Any?>(namedArgs, *positionalArgs)
+}
+
+private fun unwrapGroovyWrapper(value: Any): Any = when (value) {
+  is PojoWrapper -> value.unwrap() as? Any ?: value
+  is GroovyObjectWrapper -> value.unwrap() as? Any ?: value
+  else -> value
 }
 
 private fun isKotlinClass(clazz: Class<*>): Boolean =
@@ -212,7 +284,7 @@ private fun resolveArgs(
   // Validate named arg names
   for (name in namedArgs.keys) {
     val param = params.find { it.name == name }
-      ?: throw IllegalArgumentException("Cannot find a parameter with this name: $name")
+      ?: throw UnknownNamedParameterException(name)
   }
 
   if (namedFirst && positionalArgs.isNotEmpty() && namedArgs.isNotEmpty()) {
@@ -276,12 +348,18 @@ private fun resolveArgs(
           "Null passed for non-null parameter '${param.name}'",
         )
       }
-    } else if (!param.type.jvmErasure.isInstance(value)) {
-      val typeDesc = describeValueType(value)
-      val expectedName = param.type.jvmErasure.simpleName
-      throw IllegalArgumentException(
-        "The $typeDesc does not conform to the expected type $expectedName",
-      )
+    } else {
+      val unwrapped = unwrapGroovyWrapper(value)
+      if (!param.type.jvmErasure.isInstance(unwrapped)) {
+        val typeDesc = describeValueType(unwrapped)
+        val expectedName = param.type.jvmErasure.simpleName
+        throw IllegalArgumentException(
+          "The $typeDesc does not conform to the expected type $expectedName",
+        )
+      }
+      if (unwrapped !== value) {
+        paramMap[param] = unwrapped
+      }
     }
   }
 

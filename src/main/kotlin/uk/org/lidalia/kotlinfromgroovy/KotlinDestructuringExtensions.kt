@@ -2,6 +2,11 @@
 
 package uk.org.lidalia.kotlinfromgroovy
 
+// Install the global KotlinAwareMetaClass handler eagerly when this
+// extension module is loaded, so that Kotlin default parameter support
+// works for method calls without requiring AST transformation.
+private val metaClassHandlerInstalled = run { installGlobalMetaClassHandler() }
+
 fun getAt(self: Any, index: Int): Any? {
   val componentNumber = index + 1
   val methodName = "component$componentNumber"

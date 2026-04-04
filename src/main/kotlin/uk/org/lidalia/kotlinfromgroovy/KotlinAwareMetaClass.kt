@@ -12,10 +12,27 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     target: Any,
     name: String,
     args: Array<Any?>,
-  ): Any? = try {
-    super.invokeMethod(target, name, args)
-  } catch (e: MissingMethodException) {
-    fallbackToKotlinReflect(target, name, args, e)
+  ): Any? {
+    // For Kotlin classes, check for exact method match before delegating to Groovy.
+    // Groovy silently coerces missing args to null instead of throwing
+    // MissingMethodException, which bypasses default parameter support.
+    if (target.javaClass.isAnnotationPresent(Metadata::class.java)) {
+      val argTypes = args.map { it?.javaClass ?: Any::class.java }.toTypedArray()
+      val metaMethod = delegate.pickMethod(name, argTypes)
+      if (metaMethod == null || metaMethod.nativeParameterTypes.size != args.size) {
+        return fallbackToKotlinReflect(
+          target,
+          name,
+          args,
+          MissingMethodException(name, target.javaClass, args),
+        )
+      }
+    }
+    return try {
+      super.invokeMethod(target, name, args)
+    } catch (e: MissingMethodException) {
+      fallbackToKotlinReflect(target, name, args, e)
+    }
   }
 
   override fun invokeMethod(
@@ -26,7 +43,8 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     super.invokeMethod(target, name, args)
   } catch (e: MissingMethodException) {
     @Suppress("UNCHECKED_CAST")
-    val argsArray = when (args) {
+    val argsArray: Array<Any?> = when (args) {
+      null -> emptyArray()
       is Array<*> -> args as Array<Any?>
       else -> arrayOf(args)
     }
@@ -39,20 +57,20 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
     args: Array<Any?>,
     original: MissingMethodException,
   ): Any? {
-    // If single arg is a LinkedHashMap, try as Kotlin named args
-    if (args.size == 1 && args[0] is LinkedHashMap<*, *>) {
+    // Groovy puts named args as a LinkedHashMap in the first position,
+    // with any positional args after it.
+    if (args.isNotEmpty() && args[0] is LinkedHashMap<*, *>) {
       @Suppress("UNCHECKED_CAST")
       val namedArgs = args[0] as LinkedHashMap<String, Any?>
+      val positionalArgs = args.drop(1).toTypedArray()
       try {
-        return resolveKotlinMethodCall(target, name, namedArgs, arrayOf())
+        return resolveKotlinMethodCall(target, name, namedArgs, positionalArgs)
       } catch (_: MissingMethodException) {
         // Method not found — try extension functions
-      } catch (_: Exception) {
-        throw original
       }
       try {
-        return resolveKotlinExtensionCall(target, name, namedArgs, arrayOf())
-      } catch (_: Exception) {
+        return resolveKotlinExtensionCall(target, name, namedArgs, positionalArgs)
+      } catch (_: MissingMethodException) {
         throw original
       }
     }
@@ -61,12 +79,10 @@ class KotlinAwareMetaClass(delegate: MetaClass) : DelegatingMetaClass(delegate) 
       return resolveKotlinMethodCall(target, name, linkedMapOf(), args)
     } catch (_: MissingMethodException) {
       // Method not found — try extension functions
-    } catch (_: Exception) {
-      throw original
     }
     try {
       return resolveKotlinExtensionCall(target, name, linkedMapOf(), args)
-    } catch (_: Exception) {
+    } catch (_: MissingMethodException) {
       throw original
     }
   }
@@ -86,7 +102,7 @@ internal fun ensureKotlinAwareMetaClass(clazz: Class<*>) {
 private var globalHandlerInstalled = false
 
 @Synchronized
-private fun installGlobalMetaClassHandler() {
+internal fun installGlobalMetaClassHandler() {
   if (globalHandlerInstalled) return
   globalHandlerInstalled = true
   val registry = GroovySystem.getMetaClassRegistry()
