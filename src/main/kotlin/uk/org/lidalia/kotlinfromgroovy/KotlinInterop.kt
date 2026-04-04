@@ -358,7 +358,9 @@ private fun resolveArgs(
   // Groovy's behavior of coercing omitted trailing args to null.
   for (param in params) {
     if (param !in assignedParams && !param.isOptional) {
-      if (param.type.isMarkedNullable) {
+      if (param.isVararg) {
+        // Vararg params are implicitly optional — default to empty array
+      } else if (param.type.isMarkedNullable) {
         paramMap[param] = null
       } else {
         throw IllegalArgumentException("No value passed for parameter '${param.name}'")

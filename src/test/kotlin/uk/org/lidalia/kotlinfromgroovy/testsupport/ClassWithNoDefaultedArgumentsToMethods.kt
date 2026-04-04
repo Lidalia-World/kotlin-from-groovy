@@ -56,4 +56,13 @@ class ClassWithNoDefaultedArgumentsToMethods {
       ),
     )
   }
+
+  fun functionWithVarargs(vararg options: String) {
+    calls += Call(
+      functionName = "functionWithVarargs",
+      arguments = linkedMapOf(
+        "options" to options.toList(),
+      ),
+    )
+  }
 }

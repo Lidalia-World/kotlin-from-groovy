@@ -278,4 +278,21 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             result == 'processed: hello'
     }
 
+    // Issue 14: Kotlin vararg parameters should be treated as implicitly
+    // optional when called from Groovy with no arguments. resolveArgs
+    // must not throw "No value passed for parameter" for vararg params.
+
+    def 'can call Kotlin method with varargs and no arguments'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithVarargs()
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [options: []]
+    }
+
 }
