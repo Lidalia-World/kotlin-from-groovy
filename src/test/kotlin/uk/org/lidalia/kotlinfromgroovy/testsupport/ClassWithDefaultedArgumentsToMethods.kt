@@ -63,4 +63,19 @@ class ClassWithDefaultedArgumentsToMethods {
       ),
     )
   }
+
+  fun functionWithDefaultsAndTrailingNullable(
+    argument1: String = "argument1",
+    argument2: String = "argument2",
+    argument3: List<String>?,
+  ) {
+    calls += Call(
+      functionName = "functionWithDefaultsAndTrailingNullable",
+      arguments = linkedMapOf(
+        "argument1" to argument1,
+        "argument2" to argument2,
+        "argument3" to argument3,
+      ),
+    )
+  }
 }

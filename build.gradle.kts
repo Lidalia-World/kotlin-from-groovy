@@ -5,6 +5,7 @@ plugins {
   alias(libs.plugins.kotlin)
   `java-library`
   groovy
+  `maven-publish`
 
   alias(libs.plugins.dependencyAnalysis)
   alias(libs.plugins.kotlinter)
@@ -32,7 +33,7 @@ kotlin {
 }
 
 dependencies {
-  api(libs.groovy)
+  implementation(libs.groovy)
   implementation(kotlin("reflect"))
   runtimeOnly(libs.groovy.all)
   testImplementation(libs.junit.jupiter.api)
@@ -69,6 +70,14 @@ val compileTestGroovy by tasks.named<GroovyCompile>("compileTestGroovy") {
   classpath += files(tasks.compileTestKotlin.get().destinationDirectory)
 }
 
+publishing {
+  publications {
+    create<MavenPublication>("mavenJava") {
+      from(components["java"])
+    }
+  }
+}
+
 kotlinter {
   reporters = arrayOf("checkstyle", "plain", "html")
 }
@@ -88,6 +97,7 @@ dependencyAnalysis {
       onAny {
         severity("fail")
         exclude("org.jetbrains.kotlin:kotlin-stdlib")
+        exclude(libs.groovy)
         exclude(libs.junit.jupiter.asProvider())
       }
     }

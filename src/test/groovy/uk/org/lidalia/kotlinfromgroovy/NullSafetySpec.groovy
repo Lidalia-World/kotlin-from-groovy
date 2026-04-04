@@ -1,5 +1,6 @@
 package uk.org.lidalia.kotlinfromgroovy
 
+import org.codehaus.groovy.runtime.wrappers.PojoWrapper
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithDefaultedArgumentsToMethods
 import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
@@ -7,44 +8,34 @@ import uk.org.lidalia.kotlinfromgroovy.testsupport.DataClass
 
 class NullSafetySpec extends Specification {
 
-    def 'passing null to non-nullable parameter throws IllegalArgumentException'() {
+    def 'passing null to non-nullable parameter throws NullPointerException'() {
 
         given:
             def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
-            IllegalArgumentException caught = null
 
         when:
-            try {
-                classUnderTest.functionWithMultipleArguments(null, 2, true)
-            } catch (IllegalArgumentException e) {
-                caught = e
-            }
+            classUnderTest.functionWithMultipleArguments(null, 2, true)
 
         then:
-            caught != null
-            caught.message.toLowerCase().contains('null')
+            def exception = thrown(NullPointerException)
+            exception.message.toLowerCase().contains('null')
     }
 
-    def 'passing null to non-nullable named parameter throws IllegalArgumentException'() {
+    def 'passing null to non-nullable named parameter throws NullPointerException'() {
 
         given:
             def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
-            IllegalArgumentException caught = null
 
         when:
-            try {
-                classUnderTest.functionWithMultipleArguments(
-                    argument1: null,
-                    argument2: 2,
-                    argument3: true,
-                )
-            } catch (IllegalArgumentException e) {
-                caught = e
-            }
+            classUnderTest.functionWithMultipleArguments(
+                argument1: null,
+                argument2: 2,
+                argument3: true,
+            )
 
         then:
-            caught != null
-            caught.message.toLowerCase().contains('null')
+            def exception = thrown(NullPointerException)
+            exception.message.toLowerCase().contains('null')
     }
 
     def 'passing null to nullable parameter works'() {
@@ -60,20 +51,27 @@ class NullSafetySpec extends Specification {
             classUnderTest.calls[0].arguments == [argument1: null]
     }
 
-    def 'passing null to non-nullable constructor parameter throws IllegalArgumentException'() {
-
-        given:
-            IllegalArgumentException caught = null
+    def 'passing null to non-nullable constructor parameter throws NullPointerException'() {
 
         when:
-            try {
-                new DataClass(null, 2, true)
-            } catch (IllegalArgumentException e) {
-                caught = e
-            }
+            new DataClass(null, 2, true)
 
         then:
-            caught != null
-            caught.message.toLowerCase().contains('null')
+            def exception = thrown(NullPointerException)
+            exception.message.toLowerCase().contains('null')
+    }
+
+    def 'PojoWrapper wrapping null on non-nullable parameter throws NullPointerException'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+            def wrapped = new PojoWrapper(null, String)
+
+        when:
+            classUnderTest.functionWithMultipleArguments(wrapped, 2, true)
+
+        then:
+            def exception = thrown(NullPointerException)
+            exception.message.toLowerCase().contains('null')
     }
 }
