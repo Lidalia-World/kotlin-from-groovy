@@ -353,10 +353,16 @@ private fun resolveArgs(
     }
   }
 
-  // Check for missing required params
+  // Check for missing required params.
+  // Nullable params without defaults are filled with null to match
+  // Groovy's behavior of coercing omitted trailing args to null.
   for (param in params) {
     if (param !in assignedParams && !param.isOptional) {
-      throw IllegalArgumentException("No value passed for parameter '${param.name}'")
+      if (param.type.isMarkedNullable) {
+        paramMap[param] = null
+      } else {
+        throw IllegalArgumentException("No value passed for parameter '${param.name}'")
+      }
     }
   }
 

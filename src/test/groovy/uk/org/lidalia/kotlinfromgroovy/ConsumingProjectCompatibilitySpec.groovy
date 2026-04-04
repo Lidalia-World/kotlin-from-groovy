@@ -218,4 +218,25 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             ]
     }
 
+    // Issue 11: Groovy callers can omit trailing nullable parameters
+    // that have no default value. Groovy normally fills these with null.
+    // The Kotlin-aware dispatch must not reject such calls.
+
+    def 'can omit trailing nullable param without default when calling Kotlin method'() {
+
+        given:
+            def classUnderTest = new ClassWithDefaultedArgumentsToMethods()
+
+        when:
+            classUnderTest.functionWithDefaultsAndTrailingNullable('a', 'b')
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [
+                argument1: 'a',
+                argument2: 'b',
+                argument3: null,
+            ]
+    }
+
 }
