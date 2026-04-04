@@ -100,8 +100,7 @@ fun constructWithNamedArgs(
   // Try Groovy's default constructor resolution first
   if (namedArgs.isEmpty()) {
     try {
-      @Suppress("UNCHECKED_CAST")
-      return InvokerHelper.invokeConstructorOf(clazz, positionalArgs) as Any
+      return groovyConstruct(clazz, positionalArgs)
     } catch (_: Exception) {
       // Fall back to Kotlin reflection
     }
@@ -111,9 +110,7 @@ fun constructWithNamedArgs(
   val constructor = kClass.primaryConstructor
   if (constructor == null) {
     // Java class or class without primary constructor — use Groovy dispatch
-    val groovyArgs = buildGroovyArgs(namedArgs, positionalArgs)
-    @Suppress("UNCHECKED_CAST")
-    return InvokerHelper.invokeConstructorOf(clazz, groovyArgs) as Any
+    return groovyConstruct(clazz, buildGroovyArgs(namedArgs, positionalArgs))
   }
 
   try {
@@ -133,10 +130,8 @@ fun constructWithNamedArgs(
     // value misidentified as named args by the AST transform.
     // Try Groovy dispatch with the map as a positional argument;
     // if that also fails, re-throw the original error.
-    val groovyArgs = buildGroovyArgs(namedArgs, positionalArgs)
     try {
-      @Suppress("UNCHECKED_CAST")
-      return InvokerHelper.invokeConstructorOf(clazz, groovyArgs) as Any
+      return groovyConstruct(clazz, buildGroovyArgs(namedArgs, positionalArgs))
     } catch (_: Exception) {
       throw e
     }
@@ -267,6 +262,10 @@ private fun callByUnwrapping(callable: KCallable<*>, paramMap: Map<KParameter, A
 } catch (e: InvocationTargetException) {
   throw e.cause ?: e
 }
+
+@Suppress("UNCHECKED_CAST")
+private fun groovyConstruct(clazz: Class<*>, args: Array<Any?>): Any =
+  InvokerHelper.invokeConstructorOf(clazz, args) as Any
 
 private fun buildGroovyArgs(
   namedArgs: LinkedHashMap<String, Any?>,
