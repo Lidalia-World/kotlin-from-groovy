@@ -313,7 +313,22 @@ class ConsumingProjectCompatibilitySpec extends Specification {
             classUnderTest.calls[0].arguments == [values: [1, 2, 3, 5, 8]]
     }
 
-    // Issue 16: Groovy non-static inner classes have an implicit enclosing
+    // Issue 16: The getAt extension for Kotlin destructuring must not
+    // shadow Groovy's built-in Map.getAt(key) when the object is a Map.
+
+    def 'can use integer key to access map via getAt operator'() {
+
+        given:
+            def map = [200: 42, 500: 3]
+
+        when:
+            def result = map[200]
+
+        then:
+            result == 42
+    }
+
+    // Issue 17: Groovy non-static inner classes have an implicit enclosing
     // instance parameter in their constructor. The AST transform must not
     // rewrite these constructors into constructWithNamedArgs, because the
     // enclosing instance is not passed as a regular argument.
