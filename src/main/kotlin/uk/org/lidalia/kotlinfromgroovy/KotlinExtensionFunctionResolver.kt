@@ -32,13 +32,12 @@ internal object KotlinExtensionFunctionResolver {
 
     val urls = collectClasspathUrls(classLoader)
 
-    for (url in urls) {
+    urls.forEach { url ->
       try {
         val file = File(URI(url.toString().replace(" ", "%20")))
-        if (file.isDirectory) {
-          scanDirectory(file, file, classLoader, result)
-        } else if (file.name.endsWith(".jar")) {
-          scanJar(file, classLoader, result)
+        when {
+          file.isDirectory -> scanDirectory(file, file, classLoader, result)
+          file.name.endsWith(".jar") -> scanJar(file, classLoader, result)
         }
       } catch (_: Exception) {
         // Skip entries we can't process
@@ -66,14 +65,18 @@ internal object KotlinExtensionFunctionResolver {
     classLoader: ClassLoader,
     result: MutableMap<String, MutableList<ExtensionFunction>>,
   ) {
-    for (file in dir.listFiles() ?: return) {
-      if (file.isDirectory) {
-        scanDirectory(root, file, classLoader, result)
-      } else if (file.name.endsWith("Kt.class") && '$' !in file.name) {
-        val className = file.relativeTo(root).path
-          .removeSuffix(".class")
-          .replace(File.separatorChar, '.')
-        checkClass(className, classLoader, result)
+    (dir.listFiles() ?: return).forEach { file ->
+      when {
+        file.isDirectory -> {
+          scanDirectory(root, file, classLoader, result)
+        }
+
+        file.name.endsWith("Kt.class") && '$' !in file.name -> {
+          val className = file.relativeTo(root).path
+            .removeSuffix(".class")
+            .replace(File.separatorChar, '.')
+          checkClass(className, classLoader, result)
+        }
       }
     }
   }
@@ -84,15 +87,15 @@ internal object KotlinExtensionFunctionResolver {
     result: MutableMap<String, MutableList<ExtensionFunction>>,
   ) {
     JarFile(jarFile).use { jar ->
-      for (entry in jar.entries()) {
-        val name = entry.name
-        if (name.endsWith("Kt.class") && '$' !in name) {
+      jar.entries().asSequence()
+        .map { it.name }
+        .filter { it.endsWith("Kt.class") && '$' !in it }
+        .forEach { name ->
           val className = name
             .removeSuffix(".class")
             .replace('/', '.')
           checkClass(className, classLoader, result)
         }
-      }
     }
   }
 
@@ -107,26 +110,25 @@ internal object KotlinExtensionFunctionResolver {
       val metadata = clazz.getAnnotation(Metadata::class.java) ?: return
       if (metadata.kind != 2) return
 
-      for (method in clazz.declaredMethods) {
-        try {
-          val modifiers = method.modifiers
-          if (!java.lang.reflect.Modifier.isPublic(modifiers)) continue
-          if (!java.lang.reflect.Modifier.isStatic(modifiers)) continue
-          if (method.isSynthetic) continue
-
-          val kFunction = method.kotlinFunction ?: continue
-
-          val receiverParam = kFunction.parameters
-            .find { it.kind == KParameter.Kind.EXTENSION_RECEIVER }
-            ?: continue
-          val receiverType = receiverParam.type.jvmErasure.java
-
-          result.getOrPut(method.name) { mutableListOf() }
-            .add(ExtensionFunction(kFunction, receiverType))
-        } catch (_: Throwable) {
-          // Skip methods we can't inspect (e.g. types kotlin-reflect can't handle)
+      clazz.declaredMethods.asSequence()
+        .filter { java.lang.reflect.Modifier.isPublic(it.modifiers) }
+        .filter { java.lang.reflect.Modifier.isStatic(it.modifiers) }
+        .filter { !it.isSynthetic }
+        .mapNotNull { method ->
+          try {
+            val kFunction = method.kotlinFunction ?: return@mapNotNull null
+            val receiverParam = kFunction.parameters
+              .find { it.kind == KParameter.Kind.EXTENSION_RECEIVER }
+              ?: return@mapNotNull null
+            val receiverType = receiverParam.type.jvmErasure.java
+            method.name to ExtensionFunction(kFunction, receiverType)
+          } catch (_: Throwable) {
+            null
+          }
         }
-      }
+        .forEach { (name, ext) ->
+          result.getOrPut(name) { mutableListOf() }.add(ext)
+        }
     } catch (_: Exception) {
       // Skip classes we can't load or inspect
     }
