@@ -1,0 +1,62 @@
+package uk.org.lidalia.kotlinfromgroovy
+
+import org.codehaus.groovy.runtime.wrappers.PojoWrapper
+import spock.lang.Specification
+import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassThatThrowsInConstructor
+import uk.org.lidalia.kotlinfromgroovy.testsupport.ClassWithNoDefaultedArgumentsToMethods
+import uk.org.lidalia.kotlinfromgroovy.testsupport.JavaClassWithoutPrimaryConstructor
+
+class ConsumingProjectCompatibilitySpec extends Specification {
+
+    // Issue 1: Java classes without a Kotlin primary constructor
+    // should be constructable via Groovy when named args are used.
+    // Named args bypass early Groovy dispatch and reach Kotlin reflection,
+    // which must fall back to Groovy for non-Kotlin classes.
+
+    def 'can construct a Java class with named args'() {
+
+        when:
+            def instance = new JavaClassWithoutPrimaryConstructor(value: 'custom')
+
+        then:
+            notThrown(Exception)
+            instance.value == 'custom'
+    }
+
+    // Issue 2: Exceptions thrown inside a Kotlin constructor should
+    // propagate as their original type, not wrapped in InvocationTargetException.
+    // KFunction.callBy() wraps exceptions when default params are involved.
+
+    def 'exception in Kotlin constructor propagates unwrapped'() {
+
+        when:
+            new ClassThatThrowsInConstructor()
+
+        then:
+            def exception = thrown(IllegalStateException)
+            exception.message == 'Constructor failed: value not provided'
+    }
+
+    // Issue 3: Groovy PojoWrapper values should be unwrapped before
+    // type checking against Kotlin parameter types.
+    // Groovy's metaclass layer can wrap values in PojoWrapper during dispatch.
+
+    def 'can call Kotlin method with PojoWrapper-wrapped argument'() {
+
+        given:
+            def classUnderTest = new ClassWithNoDefaultedArgumentsToMethods()
+            def wrapped = new PojoWrapper('hello', String)
+
+        when:
+            classUnderTest.functionWithMultipleArguments(wrapped, 2, true)
+
+        then:
+            notThrown(Exception)
+            classUnderTest.calls[0].arguments == [
+                argument1: 'hello',
+                argument2: 2,
+                argument3: true,
+            ]
+    }
+
+}
