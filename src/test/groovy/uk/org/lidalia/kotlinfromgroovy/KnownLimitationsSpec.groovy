@@ -3,7 +3,7 @@ package uk.org.lidalia.kotlinfromgroovy
 import spock.lang.PendingFeature
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.Counter
-import uk.org.lidalia.kotlinfromgroovy.testsupport.LimitationExamplesKt
+import static uk.org.lidalia.kotlinfromgroovy.testsupport.LimitationExamplesKt.concatWith
 
 class KnownLimitationsSpec extends Specification {
 
