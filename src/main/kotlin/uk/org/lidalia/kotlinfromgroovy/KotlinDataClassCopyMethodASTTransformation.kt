@@ -115,14 +115,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       collectExtensionsFromClass(className, classLoader, result)
     }
 
-    // Check star-imported packages
-    val starImportPackages = source.ast.starImports
-      .mapNotNull { it.packageName?.removeSuffix(".") }
-    starImportPackages.forEach { pkg ->
-      collectExtensionsFromPackage(pkg, classLoader, result)
-    }
-
-    // Check same package
+    // Same package
     if (callerPackage.isNotEmpty()) {
       collectExtensionsFromPackage(callerPackage, classLoader, result)
     }
