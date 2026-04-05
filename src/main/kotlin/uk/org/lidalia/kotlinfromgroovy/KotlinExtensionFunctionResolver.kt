@@ -16,10 +16,12 @@ internal object KotlinExtensionFunctionResolver {
   internal data class ExtensionFunction(
     val function: KFunction<*>,
     val receiverType: Class<*>,
+    val declaringClassName: String,
   )
 
   private val extensionsByName: Map<String, List<ExtensionFunction>> by lazy {
-    scanClasspath()
+    val classLoader = Thread.currentThread().contextClassLoader ?: return@lazy emptyMap()
+    scanClasspath(classLoader)
   }
 
   fun findExtensionFunctions(methodName: String, receiverType: Class<*>): List<ExtensionFunction> =
@@ -27,9 +29,19 @@ internal object KotlinExtensionFunctionResolver {
       ?.filter { it.receiverType.isAssignableFrom(receiverType) }
       ?: emptyList()
 
-  private fun scanClasspath(): Map<String, List<ExtensionFunction>> {
+  fun extensionDeclaringClassesByMethodName(classLoader: ClassLoader): Map<String, Set<String>> {
+    val scanned = scanClasspath(classLoader)
+    val result = mutableMapOf<String, MutableSet<String>>()
+    scanned.forEach { (methodName, extensions) ->
+      extensions.forEach { ext ->
+        result.getOrPut(methodName) { mutableSetOf() }.add(ext.declaringClassName)
+      }
+    }
+    return result
+  }
+
+  private fun scanClasspath(classLoader: ClassLoader): Map<String, List<ExtensionFunction>> {
     val result = mutableMapOf<String, MutableList<ExtensionFunction>>()
-    val classLoader = Thread.currentThread().contextClassLoader ?: return result
 
     val urls = collectClasspathUrls(classLoader)
 
@@ -122,7 +134,7 @@ internal object KotlinExtensionFunctionResolver {
               .find { it.kind == KParameter.Kind.EXTENSION_RECEIVER }
               ?: return@mapNotNull null
             val receiverType = receiverParam.type.jvmErasure.java
-            method.name to ExtensionFunction(kFunction, receiverType)
+            method.name to ExtensionFunction(kFunction, receiverType, className)
           } catch (_: Throwable) {
             null
           }

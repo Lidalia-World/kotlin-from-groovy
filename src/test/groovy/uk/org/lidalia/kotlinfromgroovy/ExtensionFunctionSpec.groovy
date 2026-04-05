@@ -1,7 +1,9 @@
 package uk.org.lidalia.kotlinfromgroovy
 
+import groovy.lang.MissingMethodException
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.DataClass
+import uk.org.lidalia.kotlinfromgroovy.testsupport.ExtensionFunctionsKt
 
 class ExtensionFunctionSpec extends Specification {
 
@@ -126,5 +128,20 @@ class ExtensionFunctionSpec extends Specification {
 
         expect:
             [a: 1, b: 2].describeEntries() == 'a=1, b=2'
+    }
+
+    def 'can call an extension function from the same package without import'() {
+
+        expect:
+            'World'.samePackageGreet() == 'same-package: World'
+    }
+
+    def 'unimported extension function from different package does not resolve'() {
+
+        when:
+            'hello'.unimportedGreet()
+
+        then:
+            thrown(MissingMethodException)
     }
 }
