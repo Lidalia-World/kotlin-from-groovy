@@ -144,4 +144,13 @@ class ExtensionFunctionSpec extends Specification {
         then:
             thrown(MissingMethodException)
     }
+
+    def 'null dereferencing works'() {
+
+        given:
+            String nullReference = null
+
+        expect:
+            nullReference?.wrapWith('<<', '>>') == null
+    }
 }

@@ -81,11 +81,13 @@ fun callMethodWithNamedArgs(
 fun callExtensionMethod(
   declaringClasses: Array<Class<*>>,
   methodName: String,
-  receiver: Any,
+  receiver: Any?,
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
   namedFirst: Boolean = false,
 ): Any? {
+  // Groovy's safe-navigation (?.) still calls the method with null receiver
+  if (receiver == null) return null
   ensureKotlinAwareMetaClass(receiver.javaClass)
 
   // Instance members take priority over extensions (Kotlin semantics)
