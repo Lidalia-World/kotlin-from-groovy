@@ -3,7 +3,7 @@ package uk.org.lidalia.kotlinfromgroovy
 import groovy.lang.MissingMethodException
 import spock.lang.Specification
 import uk.org.lidalia.kotlinfromgroovy.testsupport.DataClass
-import uk.org.lidalia.kotlinfromgroovy.testsupport.ExtensionFunctionsKt
+import uk.org.lidalia.kotlinfromgroovy.testsupport.*
 
 class ExtensionFunctionSpec extends Specification {
 

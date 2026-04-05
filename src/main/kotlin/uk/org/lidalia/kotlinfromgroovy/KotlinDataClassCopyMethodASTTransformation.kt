@@ -99,17 +99,21 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     val callerPackage = source.ast.packageName?.removeSuffix(".") ?: ""
     val result = mutableMapOf<String, MutableList<String>>()
 
-    // Check explicitly imported classes for extension functions
-    val importedClassNames = source.ast.imports.mapNotNull { it.className }
-    val staticImportClassNames = source.ast.staticImports.values.mapNotNull { it.type?.name }
+    // Explicit static imports: import static FooKt.methodName
+    // Only the specifically named method is in scope, not all methods from the class.
+    source.ast.staticImports.forEach { (methodName, importNode) ->
+      val className = importNode.type?.name ?: return@forEach
+      result.getOrPut(methodName) { mutableListOf() }.add(className)
+    }
+
+    // Static star imports: import static FooKt.*
+    // All public static methods from the class are in scope.
     val staticStarImportClassNames = source.ast.staticStarImports.values.mapNotNull {
       it.type?.name
     }
-    (importedClassNames + staticImportClassNames + staticStarImportClassNames)
-      .toSet()
-      .forEach { className ->
-        collectExtensionsFromClass(className, classLoader, result)
-      }
+    staticStarImportClassNames.toSet().forEach { className ->
+      collectExtensionsFromClass(className, classLoader, result)
+    }
 
     // Check star-imported packages
     val starImportPackages = source.ast.starImports
