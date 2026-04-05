@@ -105,9 +105,11 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     val staticStarImportClassNames = source.ast.staticStarImports.values.mapNotNull {
       it.type?.name
     }
-    (importedClassNames + staticImportClassNames + staticStarImportClassNames).toSet().forEach { className ->
-      collectExtensionsFromClass(className, classLoader, result)
-    }
+    (importedClassNames + staticImportClassNames + staticStarImportClassNames)
+      .toSet()
+      .forEach { className ->
+        collectExtensionsFromClass(className, classLoader, result)
+      }
 
     // Check star-imported packages
     val starImportPackages = source.ast.starImports
