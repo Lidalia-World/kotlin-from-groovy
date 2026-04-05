@@ -95,17 +95,10 @@ private fun resolveKotlinCall(
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
   original: MissingMethodException,
-): Any? {
-  try {
-    return resolveKotlinMethodCall(target, name, namedArgs, positionalArgs)
-  } catch (_: MissingMethodException) {
-    // Method not found — try extension functions
-  }
-  try {
-    return resolveKotlinExtensionCall(target, name, namedArgs, positionalArgs)
-  } catch (_: MissingMethodException) {
-    throw original
-  }
+): Any? = try {
+  resolveKotlinMethodCall(target, name, namedArgs, positionalArgs)
+} catch (_: MissingMethodException) {
+  throw original
 }
 
 // Groovy's indy Selector (invokedynamic dispatch) only recognizes

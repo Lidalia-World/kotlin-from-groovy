@@ -8,12 +8,15 @@ import org.codehaus.groovy.runtime.InvokerHelper
 import org.codehaus.groovy.runtime.wrappers.GroovyObjectWrapper
 import org.codehaus.groovy.runtime.wrappers.PojoWrapper
 import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Modifier
 import kotlin.reflect.KCallable
+import kotlin.reflect.KFunction
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.memberFunctions
 import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.jvmErasure
+import kotlin.reflect.jvm.kotlinFunction
 
 fun callMethodWithNamedArgs(
   target: Any,
@@ -35,18 +38,8 @@ fun callMethodWithNamedArgs(
       try {
         return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
       } catch (_: MissingMethodException) {
-        try {
-          return resolveKotlinExtensionCall(
-            target,
-            methodName,
-            namedArgs,
-            positionalArgs,
-            namedFirst,
-          )
-        } catch (_: MissingMethodException) {
-          // Named arg keys didn't match any parameter names — likely a literal
-          // map value, not actual named args. Fall through to Groovy dispatch.
-        }
+        // Named arg keys didn't match any parameter names — likely a literal
+        // map value, not actual named args. Fall through to Groovy dispatch.
       }
     }
     val groovyArgs = if (positionalArgs.isEmpty()) {
@@ -82,11 +75,43 @@ fun callMethodWithNamedArgs(
     }
   }
 
+  return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+}
+
+fun callExtensionMethod(
+  declaringClasses: Array<Class<*>>,
+  methodName: String,
+  receiver: Any?,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  namedFirst: Boolean = false,
+): Any? {
+  // Groovy's safe-navigation (?.) still calls the method with null receiver
+  if (receiver == null) return null
+  ensureKotlinAwareMetaClass(receiver.javaClass)
+
+  // Instance members take priority over extensions (Kotlin semantics)
   try {
-    return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+    if (namedArgs.isEmpty()) {
+      val argTypes = positionalArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
+      val metaMethod = InvokerHelper.getMetaClass(receiver).pickMethod(methodName, argTypes)
+      if (metaMethod != null && metaMethod.nativeParameterTypes.size == positionalArgs.size) {
+        return metaMethod.invoke(receiver, positionalArgs)
+      }
+    }
+    return resolveKotlinMethodCall(receiver, methodName, namedArgs, positionalArgs, namedFirst)
   } catch (_: MissingMethodException) {
-    return resolveKotlinExtensionCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+    // Not an instance method — try extension
   }
+
+  return resolveExtensionOnClasses(
+    declaringClasses,
+    receiver,
+    methodName,
+    namedArgs,
+    positionalArgs,
+    namedFirst,
+  )
 }
 
 fun constructWithNamedArgs(
@@ -253,6 +278,79 @@ internal fun resolveKotlinExtensionCall(
   }
   throw errors.first()
 }
+
+private fun resolveExtensionOnClasses(
+  declaringClasses: Array<Class<*>>,
+  target: Any,
+  methodName: String,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  namedFirst: Boolean,
+): Any? {
+  val errors = mutableListOf<IllegalArgumentException>()
+
+  declaringClasses.forEach { declaringClass ->
+    findExtensionFunctionsOnClass(
+      declaringClass,
+      methodName,
+      target.javaClass,
+    ).forEach { function ->
+      try {
+        val receiverParam = function.parameters
+          .first { it.kind == KParameter.Kind.EXTENSION_RECEIVER }
+        val valueParams = function.parameters
+          .filter { it.kind == KParameter.Kind.VALUE }
+
+        val paramMap =
+          resolveArgs(
+            valueParams,
+            namedArgs,
+            positionalArgs,
+            namedFirst,
+            validateNullability = true,
+          )
+        paramMap[receiverParam] = target
+
+        function.isAccessible = true
+        return callByUnwrapping(function, paramMap)
+      } catch (e: IllegalArgumentException) {
+        errors += e
+      }
+    }
+  }
+
+  if (errors.isEmpty() || errors.all { it is UnknownNamedParameterException }) {
+    throw MissingMethodException(
+      methodName,
+      target.javaClass,
+      arrayOf<Any?>(namedArgs, *positionalArgs),
+    )
+  }
+  throw errors.first()
+}
+
+private fun findExtensionFunctionsOnClass(
+  declaringClass: Class<*>,
+  methodName: String,
+  receiverType: Class<*>,
+): List<KFunction<*>> = declaringClass.declaredMethods.asSequence()
+  .filter { Modifier.isPublic(it.modifiers) }
+  .filter { Modifier.isStatic(it.modifiers) }
+  .filter { !it.isSynthetic }
+  .filter { it.name == methodName }
+  .mapNotNull { method ->
+    try {
+      val kFunction = method.kotlinFunction ?: return@mapNotNull null
+      val receiverParam = kFunction.parameters
+        .find { it.kind == KParameter.Kind.EXTENSION_RECEIVER }
+        ?: return@mapNotNull null
+      val extReceiverType = receiverParam.type.jvmErasure.java
+      if (extReceiverType.isAssignableFrom(receiverType)) kFunction else null
+    } catch (_: Throwable) {
+      null
+    }
+  }
+  .toList()
 
 internal class UnknownNamedParameterException(name: String) :
   IllegalArgumentException("Cannot find a parameter with this name: $name")
