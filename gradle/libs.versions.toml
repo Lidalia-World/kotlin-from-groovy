@@ -1,7 +1,7 @@
 [versions]
 groovy = "4.0.31"
 kotlin = "2.0.20"
-junit-jupiter = "5.12.2"
+junit-jupiter = "6.0.3"
 
 [libraries]
 groovy = { module = "org.apache.groovy:groovy", version.ref = "groovy" }
