@@ -194,21 +194,13 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     val declaringClassNames = methodName?.let { extensionScope[it] }
 
     return when {
-      isCallOnThis(expr) -> {
-        null
-      }
+      isCallOnThis(expr) -> null
 
-      containsSpreadExpression(expr.arguments) -> {
-        null
-      }
+      containsSpreadExpression(expr.arguments) -> null
 
-      methodName == null -> {
-        null
-      }
+      methodName == null -> null
 
-      declaringClassNames == null -> {
-        null
-      }
+      declaringClassNames == null -> null
 
       else -> {
         val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
