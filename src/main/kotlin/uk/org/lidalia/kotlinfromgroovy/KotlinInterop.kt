@@ -78,6 +78,26 @@ fun callMethodWithNamedArgs(
   return resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
 }
 
+private fun tryInstanceMethod(
+  target: Any,
+  methodName: String,
+  namedArgs: LinkedHashMap<String, Any?>,
+  positionalArgs: Array<Any?>,
+  namedFirst: Boolean,
+): Result<Any?>? = try {
+  val argTypes = positionalArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
+  val metaMethod = InvokerHelper.getMetaClass(target).pickMethod(methodName, argTypes)
+    ?.takeIf { namedArgs.isEmpty() && it.nativeParameterTypes.size == positionalArgs.size }
+  Result.success(
+    when {
+      metaMethod != null -> metaMethod.invoke(target, positionalArgs)
+      else -> resolveKotlinMethodCall(target, methodName, namedArgs, positionalArgs, namedFirst)
+    },
+  )
+} catch (_: MissingMethodException) {
+  null
+}
+
 fun callExtensionMethod(
   declaringClasses: Array<Class<*>>,
   methodName: String,
@@ -85,33 +105,38 @@ fun callExtensionMethod(
   namedArgs: LinkedHashMap<String, Any?>,
   positionalArgs: Array<Any?>,
   namedFirst: Boolean = false,
-): Any? {
+): Any? = when (receiver) {
   // Groovy's safe-navigation (?.) still calls the method with null receiver
-  if (receiver == null) return null
-  ensureKotlinAwareMetaClass(receiver.javaClass)
-
-  // Instance members take priority over extensions (Kotlin semantics)
-  try {
-    if (namedArgs.isEmpty()) {
-      val argTypes = positionalArgs.map { it?.javaClass ?: Any::class.java }.toTypedArray()
-      val metaMethod = InvokerHelper.getMetaClass(receiver).pickMethod(methodName, argTypes)
-      if (metaMethod != null && metaMethod.nativeParameterTypes.size == positionalArgs.size) {
-        return metaMethod.invoke(receiver, positionalArgs)
-      }
-    }
-    return resolveKotlinMethodCall(receiver, methodName, namedArgs, positionalArgs, namedFirst)
-  } catch (_: MissingMethodException) {
-    // Not an instance method — try extension
+  null -> {
+    null
   }
 
-  return resolveExtensionOnClasses(
-    declaringClasses,
-    receiver,
-    methodName,
-    namedArgs,
-    positionalArgs,
-    namedFirst,
-  )
+  else -> {
+    ensureKotlinAwareMetaClass(receiver.javaClass)
+
+    // Instance members take priority over extensions (Kotlin semantics).
+    // tryInstanceMethod returns Result<Any?> when a method was found (even if
+    // it returned null), or null when no matching instance method exists.
+    val instanceResult = tryInstanceMethod(
+      receiver,
+      methodName,
+      namedArgs,
+      positionalArgs,
+      namedFirst,
+    )
+    when (instanceResult) {
+      null -> resolveExtensionOnClasses(
+        declaringClasses,
+        receiver,
+        methodName,
+        namedArgs,
+        positionalArgs,
+        namedFirst,
+      )
+
+      else -> instanceResult.getOrThrow()
+    }
+  }
 }
 
 fun constructWithNamedArgs(
