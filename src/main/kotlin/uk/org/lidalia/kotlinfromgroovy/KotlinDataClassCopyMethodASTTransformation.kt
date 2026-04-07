@@ -39,46 +39,48 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       override fun getSourceUnit(): SourceUnit = source
 
       override fun visitMethod(node: MethodNode) {
-        if (node.hasCompileStaticAnnotation()) return
-        if (!methodNeedsTransformation(node, extensionScope)) return
-        super.visitMethod(node)
+        if (!node.hasCompileStaticAnnotation() && methodNeedsTransformation(node, extensionScope)) {
+          super.visitMethod(node)
+        }
       }
 
-      override fun transform(expr: Expression?): Expression? {
-        // Return calls on this/super unchanged — running super.transform
+      override fun transform(expr: Expression?): Expression? = when {
+        // Leave calls on this/super unchanged — running super.transform
         // on them disrupts Groovy's static dispatch for private methods.
-        if (expr is MethodCallExpression && isCallOnThis(expr)) {
-          return expr
+        expr is MethodCallExpression && isCallOnThis(expr) -> {
+          expr
         }
 
-        // Detect named args before super.transform, which may convert
-        // NamedArgumentListExpression to plain MapExpression
-        val precomputedInfo = when (expr) {
-          is MethodCallExpression -> findNamedArgs(expr.arguments)
-          is ConstructorCallExpression -> findNamedArgs(expr.arguments)
-          else -> null
-        }
-        val withTransformedChildren = super.transform(expr)
-        return when (withTransformedChildren) {
-          is MethodCallExpression -> {
-            // Try extension function rewrite first (handles both positional and named args)
-            transformExtensionCall(withTransformedChildren, precomputedInfo, extensionScope)
-              ?: if (precomputedInfo != null) {
-                // Non-extension calls with named args go through callMethodWithNamedArgs
-                transformMethodCall(withTransformedChildren, precomputedInfo)
-                  ?: withTransformedChildren
-              } else {
-                withTransformedChildren
-              }
+        else -> {
+          // Detect named args before super.transform, which may convert
+          // NamedArgumentListExpression to plain MapExpression
+          val precomputedInfo = when (expr) {
+            is MethodCallExpression -> findNamedArgs(expr.arguments)
+            is ConstructorCallExpression -> findNamedArgs(expr.arguments)
+            else -> null
           }
+          val withTransformedChildren = super.transform(expr)
+          when (withTransformedChildren) {
+            is MethodCallExpression -> {
+              // Try extension function rewrite first (handles both positional and named args)
+              transformExtensionCall(withTransformedChildren, precomputedInfo, extensionScope)
+                ?: if (precomputedInfo != null) {
+                  // Non-extension calls with named args go through callMethodWithNamedArgs
+                  transformMethodCall(withTransformedChildren, precomputedInfo)
+                    ?: withTransformedChildren
+                } else {
+                  withTransformedChildren
+                }
+            }
 
-          is ConstructorCallExpression -> {
-            transformConstructorCall(withTransformedChildren, precomputedInfo)
-              ?: withTransformedChildren
-          }
+            is ConstructorCallExpression -> {
+              transformConstructorCall(withTransformedChildren, precomputedInfo)
+                ?: withTransformedChildren
+            }
 
-          else -> {
-            withTransformedChildren
+            else -> {
+              withTransformedChildren
+            }
           }
         }
       }
@@ -102,18 +104,19 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     // Explicit static imports: import static FooKt.methodName
     // Only the specifically named method is in scope, not all methods from the class.
     source.ast.staticImports.forEach { (methodName, importNode) ->
-      val className = importNode.type?.name ?: return@forEach
-      result.getOrPut(methodName) { mutableListOf() }.add(className)
+      importNode.type?.name?.let { className ->
+        result.getOrPut(methodName) { mutableListOf() }.add(className)
+      }
     }
 
     // Static star imports: import static FooKt.*
     // All public static methods from the class are in scope.
-    val staticStarImportClassNames = source.ast.staticStarImports.values.mapNotNull {
-      it.type?.name
-    }
-    staticStarImportClassNames.toSet().forEach { className ->
-      collectExtensionsFromClass(className, classLoader, result)
-    }
+    source.ast.staticStarImports.values
+      .mapNotNull { it.type?.name }
+      .toSet()
+      .forEach { className ->
+        collectExtensionsFromClass(className, classLoader, result)
+      }
 
     // Same package
     if (callerPackage.isNotEmpty()) {
@@ -130,31 +133,30 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   ) {
     try {
       val clazz = classLoader.loadClass(className)
-      if (!isKotlinFileFacade(clazz)) return
-
-      clazz.declaredMethods.asSequence()
-        .filter { Modifier.isPublic(it.modifiers) }
-        .filter { Modifier.isStatic(it.modifiers) }
-        .filter { !it.isSynthetic }
-        .forEach { method ->
-          result.getOrPut(method.name) { mutableListOf() }.add(className)
-        }
+      if (isKotlinFileFacade(clazz)) {
+        clazz.declaredMethods.asSequence()
+          .filter { Modifier.isPublic(it.modifiers) }
+          .filter { Modifier.isStatic(it.modifiers) }
+          .filter { !it.isSynthetic }
+          .forEach { method ->
+            result.getOrPut(method.name) { mutableListOf() }.add(className)
+          }
+      }
     } catch (_: Exception) {
       // Skip classes we can't load — e.g. Groovy classes not yet compiled
     }
   }
 
-  private fun isKotlinFileFacade(clazz: Class<*>): Boolean {
-    val metadata = clazz.annotations
-      .find { it.annotationClass.qualifiedName == "kotlin.Metadata" }
-      ?: return false
-    return try {
-      val kMethod = metadata.annotationClass.java.getMethod("k")
-      kMethod.invoke(metadata) == 2
-    } catch (_: Exception) {
-      false
-    }
-  }
+  private fun isKotlinFileFacade(clazz: Class<*>): Boolean = clazz.annotations
+    .find { it.annotationClass.qualifiedName == "kotlin.Metadata" }
+    ?.let { metadata ->
+      try {
+        val kMethod = metadata.annotationClass.java.getMethod("k")
+        kMethod.invoke(metadata) == 2
+      } catch (_: Exception) {
+        false
+      }
+    } ?: false
 
   private fun collectExtensionsFromPackage(
     packageName: String,
@@ -188,30 +190,48 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     precomputedInfo: NamedArgsInfo?,
     extensionScope: Map<String, List<String>>,
   ): Expression? {
-    if (isCallOnThis(expr)) return null
-    if (containsSpreadExpression(expr.arguments)) return null
-    val methodName = extractMethodName(expr) ?: return null
+    val methodName = extractMethodName(expr)
+    val declaringClassNames = methodName?.let { extensionScope[it] }
 
-    val declaringClassNames = extensionScope[methodName] ?: return null
+    return when {
+      isCallOnThis(expr) -> {
+        null
+      }
 
-    val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
-    val positionalExprs = precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
-    val namedFirst = precomputedInfo?.namedFirst ?: false
+      containsSpreadExpression(expr.arguments) -> {
+        null
+      }
 
-    return StaticMethodCallExpression(
-      kotlinInteropClass,
-      "callExtensionMethod",
-      ArgumentListExpression(
-        listOf(
-          createClassArray(declaringClassNames),
-          ConstantExpression(methodName),
-          expr.objectExpression,
-          namedArgMap,
-          ArrayExpression(ClassHelper.OBJECT_TYPE, positionalExprs),
-          ConstantExpression(namedFirst),
-        ),
-      ),
-    )
+      methodName == null -> {
+        null
+      }
+
+      declaringClassNames == null -> {
+        null
+      }
+
+      else -> {
+        val namedArgMap = precomputedInfo?.namedArgMap ?: MapExpression()
+        val positionalExprs =
+          precomputedInfo?.positionalExprs ?: extractPositionalArgs(expr.arguments)
+        val namedFirst = precomputedInfo?.namedFirst ?: false
+
+        StaticMethodCallExpression(
+          kotlinInteropClass,
+          "callExtensionMethod",
+          ArgumentListExpression(
+            listOf(
+              createClassArray(declaringClassNames),
+              ConstantExpression(methodName),
+              expr.objectExpression,
+              namedArgMap,
+              ArrayExpression(ClassHelper.OBJECT_TYPE, positionalExprs),
+              ConstantExpression(namedFirst),
+            ),
+          ),
+        )
+      }
+    }
   }
 
   private fun createClassArray(classNames: List<String>): ArrayExpression = ArrayExpression(
@@ -322,22 +342,18 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
    * ConstantExpression method names and Spock's value-recorder wrapping where
    * the method name is passed through $spock_valueRecorder.record(index, name).
    */
-  private fun extractMethodName(expr: MethodCallExpression): String? {
-    val method = expr.method
-    if (method is ConstantExpression) {
-      return method.value as? String
+  private fun extractMethodName(expr: MethodCallExpression): String? =
+    when (val method = expr.method) {
+      is ConstantExpression -> method.value as? String
+
+      // Spock wrapping: $spock_valueRecorder.record(startRecordingValue(n), "methodName")
+      is MethodCallExpression -> (method.arguments as? ArgumentListExpression)
+        ?.takeIf { it.expressions.size == 2 }
+        ?.let { it.expressions[1] as? ConstantExpression }
+        ?.value as? String
+
+      else -> null
     }
-    if (method is MethodCallExpression) {
-      val args = method.arguments
-      if (args is ArgumentListExpression && args.expressions.size == 2) {
-        val nameArg = args.expressions[1]
-        if (nameArg is ConstantExpression) {
-          return nameArg.value as? String
-        }
-      }
-    }
-    return null
-  }
 
   private fun containsSpreadExpression(args: Expression): Boolean = when (args) {
     is TupleExpression -> args.expressions.any { it is SpreadExpression }
