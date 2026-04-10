@@ -11,6 +11,8 @@ spock-core = { module = "org.spockframework:spock-core", version = "2.4-groovy-4
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit-jupiter" }
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit-jupiter" }
 
+asm = { module = "org.ow2.asm:asm", version = "9.7.1" }
+asm-tree = { module = "org.ow2.asm:asm-tree", version = "9.7.1" }
 semver4j = { module = "com.github.gundy:semver4j", version = "0.16.4" }
 
 [plugins]

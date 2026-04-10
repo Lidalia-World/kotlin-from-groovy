@@ -33,6 +33,8 @@ kotlin {
 }
 
 dependencies {
+  implementation(libs.asm)
+  implementation(libs.asm.tree)
   implementation(libs.groovy)
   implementation(kotlin("reflect"))
   runtimeOnly(libs.groovy.all)
