@@ -608,3 +608,17 @@ private fun describeValueType(value: Any): String = when (value) {
   is String -> "string literal"
   else -> "value of type ${value::class.simpleName}"
 }
+
+fun callReifiedFunction(
+  declaringClass: Class<*>,
+  methodName: String,
+  reifiedTypes: Array<Class<*>>,
+  args: Array<Any?>,
+): Any? = ReifiedBridgeGenerator.callReifiedStatic(declaringClass, methodName, reifiedTypes, args)
+
+fun callReifiedMethod(
+  target: Any,
+  methodName: String,
+  reifiedTypes: Array<Class<*>>,
+  args: Array<Any?>,
+): Any? = ReifiedBridgeGenerator.callReifiedInstance(target, methodName, reifiedTypes, args)

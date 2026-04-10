@@ -2,6 +2,8 @@ package uk.org.lidalia.kotlinfromgroovy.kotlintests
 
 import org.junit.jupiter.api.Test
 import uk.org.lidalia.kotlinfromgroovy.ReifiedBridgeGenerator
+import uk.org.lidalia.kotlinfromgroovy.callReifiedFunction
+import uk.org.lidalia.kotlinfromgroovy.callReifiedMethod
 import uk.org.lidalia.kotlinfromgroovy.testsupport.TypeConverter
 
 class ReifiedBridgeGeneratorTest {
@@ -43,6 +45,29 @@ class ReifiedBridgeGeneratorTest {
   fun `generates bridge for instance method convert with marker 1 and 4`() {
     val converter = TypeConverter()
     val result = ReifiedBridgeGenerator.callReifiedInstance(
+      converter,
+      "convert",
+      arrayOf(Int::class.javaObjectType),
+      arrayOf("42"),
+    )
+    assert(result == 42) { "Expected 42 but got '$result'" }
+  }
+
+  @Test
+  fun `callReifiedFunction dispatches to bridge for static reified function`() {
+    val result = callReifiedFunction(
+      inlineReifiedFunctionsKt,
+      "typeName",
+      arrayOf(String::class.java),
+      arrayOf(),
+    )
+    assert(result == "String") { "Expected 'String' but got '$result'" }
+  }
+
+  @Test
+  fun `callReifiedMethod dispatches to bridge for instance reified method`() {
+    val converter = TypeConverter()
+    val result = callReifiedMethod(
       converter,
       "convert",
       arrayOf(Int::class.javaObjectType),
