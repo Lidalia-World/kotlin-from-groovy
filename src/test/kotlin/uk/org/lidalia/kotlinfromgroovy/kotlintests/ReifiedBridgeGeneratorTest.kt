@@ -18,4 +18,23 @@ class ReifiedBridgeGeneratorTest {
     )
     assert(result == "String") { "Expected 'String' but got '$result'" }
   }
+
+  @Test
+  fun `generates bridge for isInstanceOf that checks instance type`() {
+    val trueResult = ReifiedBridgeGenerator.callReifiedStatic(
+      inlineReifiedFunctionsKt,
+      "isInstanceOf",
+      arrayOf(String::class.java),
+      arrayOf("hello"),
+    )
+    assert(trueResult == true) { "Expected true but got '$trueResult'" }
+
+    val falseResult = ReifiedBridgeGenerator.callReifiedStatic(
+      inlineReifiedFunctionsKt,
+      "isInstanceOf",
+      arrayOf(Int::class.javaObjectType),
+      arrayOf("hello"),
+    )
+    assert(falseResult == false) { "Expected false but got '$falseResult'" }
+  }
 }
