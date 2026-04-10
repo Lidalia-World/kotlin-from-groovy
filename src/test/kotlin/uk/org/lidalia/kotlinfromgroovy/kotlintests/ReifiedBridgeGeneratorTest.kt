@@ -2,6 +2,7 @@ package uk.org.lidalia.kotlinfromgroovy.kotlintests
 
 import org.junit.jupiter.api.Test
 import uk.org.lidalia.kotlinfromgroovy.ReifiedBridgeGenerator
+import uk.org.lidalia.kotlinfromgroovy.testsupport.TypeConverter
 
 class ReifiedBridgeGeneratorTest {
 
@@ -36,5 +37,17 @@ class ReifiedBridgeGeneratorTest {
       arrayOf("hello"),
     )
     assert(falseResult == false) { "Expected false but got '$falseResult'" }
+  }
+
+  @Test
+  fun `generates bridge for instance method convert with marker 1 and 4`() {
+    val converter = TypeConverter()
+    val result = ReifiedBridgeGenerator.callReifiedInstance(
+      converter,
+      "convert",
+      arrayOf(Int::class.javaObjectType),
+      arrayOf("42"),
+    )
+    assert(result == 42) { "Expected 42 but got '$result'" }
   }
 }

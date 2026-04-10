@@ -35,6 +35,24 @@ object ReifiedBridgeGenerator {
     return method.invoke(null, *allArgs)
   }
 
+  fun callReifiedInstance(
+    target: Any,
+    methodName: String,
+    reifiedTypes: Array<Class<*>>,
+    args: Array<Any?>,
+  ): Any? {
+    val bridgeClass = getOrCreateBridge(target.javaClass)
+    val expectedParamCount = 1 + reifiedTypes.size + args.size // instance + classes + args
+    val method = bridgeClass.methods.first { m ->
+      m.name == methodName && m.parameterCount == expectedParamCount
+    }
+    val allArgs = arrayOfNulls<Any>(expectedParamCount)
+    allArgs[0] = target
+    reifiedTypes.forEachIndexed { i, c -> allArgs[1 + i] = c }
+    args.forEachIndexed { i, a -> allArgs[1 + reifiedTypes.size + i] = a }
+    return method.invoke(null, *allArgs)
+  }
+
   private fun getOrCreateBridge(declaringClass: Class<*>): Class<*> {
     val key = declaringClass.name
     return cache.getOrPut(key) { generateBridgeClass(declaringClass) }
@@ -53,7 +71,7 @@ object ReifiedBridgeGenerator {
     classNode.methods
       .filter { it.isSyntheticReified() }
       .forEach { method ->
-        bridgeNode.methods.add(patchMethod(method))
+        bridgeNode.methods.add(patchMethod(method, classNode.name))
       }
 
     val writer = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
@@ -82,7 +100,7 @@ object ReifiedBridgeGenerator {
         insn.name == "reifiedOperationMarker"
     }
 
-  private fun patchMethod(original: MethodNode): MethodNode {
+  private fun patchMethod(original: MethodNode, ownerInternalName: String): MethodNode {
     val reifiedParams = findReifiedTypeParams(original)
     val originalType = Type.getMethodType(original.desc)
     val originalArgTypes = originalType.argumentTypes
@@ -91,7 +109,12 @@ object ReifiedBridgeGenerator {
     val classParamBaseIndex = if (isStatic) 0 else 1
     val localShift = reifiedParams.size
 
-    val newArgTypes = Array(reifiedParams.size) { classType } + originalArgTypes
+    val instancePrefix = if (isStatic) {
+      emptyArray()
+    } else {
+      arrayOf(Type.getObjectType(ownerInternalName))
+    }
+    val newArgTypes = instancePrefix + Array(reifiedParams.size) { classType } + originalArgTypes
     val newDesc = Type.getMethodDescriptor(originalType.returnType, *newArgTypes)
 
     // Build label map for cloning
