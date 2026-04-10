@@ -97,9 +97,27 @@ private fun resolveKotlinCall(
   original: MissingMethodException,
 ): Any? = try {
   resolveKotlinMethodCall(target, name, namedArgs, positionalArgs)
-} catch (_: MissingMethodException) {
-  throw original
+} catch (e: MissingMethodException) {
+  tryReifiedInstanceCall(target, name, positionalArgs) ?: throw e
+} catch (e: IllegalArgumentException) {
+  tryReifiedInstanceCall(target, name, positionalArgs) ?: throw e
 }
+
+private fun tryReifiedInstanceCall(
+  target: Any,
+  name: String,
+  positionalArgs: Array<Any?>,
+): Any? {
+  if (positionalArgs.isNotEmpty() && positionalArgs[0] is Class<*> &&
+    hasSyntheticMethod(target.javaClass, name)
+  ) {
+    return callReifiedMethod(target, name, positionalArgs)
+  }
+  return null
+}
+
+private fun hasSyntheticMethod(clazz: Class<*>, name: String): Boolean =
+  clazz.declaredMethods.any { it.name == name && it.isSynthetic }
 
 // Groovy's indy Selector (invokedynamic dispatch) only recognizes
 // MetaClassImpl, ClosureMetaClass, and ExpandoMetaClass by exact class
