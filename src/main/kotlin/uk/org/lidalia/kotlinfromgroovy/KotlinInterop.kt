@@ -616,9 +616,29 @@ fun callReifiedFunction(
   args: Array<Any?>,
 ): Any? = ReifiedBridgeGenerator.callReifiedStatic(declaringClass, methodName, reifiedTypes, args)
 
+fun callReifiedFunction(
+  declaringClass: Class<*>,
+  methodName: String,
+  allArgs: Array<Any?>,
+): Any? {
+  val reifiedTypes = allArgs.takeWhile { it is Class<*> }.map { it as Class<*> }.toTypedArray()
+  val args = allArgs.drop(reifiedTypes.size).toTypedArray()
+  return ReifiedBridgeGenerator.callReifiedStatic(declaringClass, methodName, reifiedTypes, args)
+}
+
 fun callReifiedMethod(
   target: Any,
   methodName: String,
   reifiedTypes: Array<Class<*>>,
   args: Array<Any?>,
 ): Any? = ReifiedBridgeGenerator.callReifiedInstance(target, methodName, reifiedTypes, args)
+
+fun callReifiedMethod(
+  target: Any,
+  methodName: String,
+  allArgs: Array<Any?>,
+): Any? {
+  val reifiedTypes = allArgs.takeWhile { it is Class<*> }.map { it as Class<*> }.toTypedArray()
+  val args = allArgs.drop(reifiedTypes.size).toTypedArray()
+  return ReifiedBridgeGenerator.callReifiedInstance(target, methodName, reifiedTypes, args)
+}

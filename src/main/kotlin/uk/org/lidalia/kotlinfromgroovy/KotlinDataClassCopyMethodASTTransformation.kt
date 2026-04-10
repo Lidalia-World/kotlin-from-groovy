@@ -34,12 +34,15 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
 
   override fun visit(nodes: Array<ASTNode>, source: SourceUnit) {
     val extensionScope = buildExtensionScope(source)
+    val reifiedScope = buildReifiedScope(source)
 
     val transformer = object : ClassCodeExpressionTransformer() {
       override fun getSourceUnit(): SourceUnit = source
 
       override fun visitMethod(node: MethodNode) {
-        if (!node.hasCompileStaticAnnotation() && methodNeedsTransformation(node, extensionScope)) {
+        if (!node.hasCompileStaticAnnotation() &&
+          methodNeedsTransformation(node, extensionScope, reifiedScope)
+        ) {
           super.visitMethod(node)
         }
       }
@@ -47,8 +50,9 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       override fun transform(expr: Expression?): Expression? = when {
         // Leave calls on this/super unchanged — running super.transform
         // on them disrupts Groovy's static dispatch for private methods.
+        // Exception: reified function calls need transformation.
         expr is MethodCallExpression && isCallOnThis(expr) -> {
-          expr
+          transformReifiedStaticCall(expr, reifiedScope) ?: expr
         }
 
         else -> {
@@ -90,7 +94,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
       .filter { classNode ->
         classNode.methods.any {
           !it.hasCompileStaticAnnotation() &&
-            methodNeedsTransformation(it, extensionScope)
+            methodNeedsTransformation(it, extensionScope, reifiedScope)
         }
       }
       .forEach { transformer.visitClass(it) }
@@ -124,6 +128,57 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
     }
 
     return result
+  }
+
+  private fun buildReifiedScope(source: SourceUnit): Map<String, String> {
+    val classLoader = source.classLoader ?: return emptyMap()
+    val result = mutableMapOf<String, String>()
+
+    source.ast.staticImports.forEach { (methodName, importNode) ->
+      importNode.type?.name?.let { className ->
+        if (isSyntheticStaticMethod(className, methodName, classLoader)) {
+          result[methodName] = className
+        }
+      }
+    }
+
+    return result
+  }
+
+  private fun isSyntheticStaticMethod(
+    className: String,
+    methodName: String,
+    classLoader: ClassLoader,
+  ): Boolean = try {
+    val clazz = classLoader.loadClass(className)
+    clazz.declaredMethods.any { m ->
+      m.name == methodName &&
+        Modifier.isStatic(m.modifiers) &&
+        m.isSynthetic
+    }
+  } catch (_: Exception) {
+    false
+  }
+
+  private fun transformReifiedStaticCall(
+    expr: MethodCallExpression,
+    reifiedScope: Map<String, String>,
+  ): Expression? {
+    val methodName = extractMethodName(expr) ?: return null
+    val declaringClassName = reifiedScope[methodName] ?: return null
+    val allArgs = extractPositionalArgs(expr.arguments)
+
+    return StaticMethodCallExpression(
+      kotlinInteropClass,
+      "callReifiedFunction",
+      ArgumentListExpression(
+        listOf(
+          ClassExpression(ClassHelper.make(declaringClassName)),
+          ConstantExpression(methodName),
+          ArrayExpression(ClassHelper.OBJECT_TYPE, allArgs),
+        ),
+      ),
+    )
   }
 
   private fun collectExtensionsFromClass(
@@ -368,6 +423,7 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
   private fun methodNeedsTransformation(
     node: MethodNode,
     extensionScope: Map<String, List<String>>,
+    reifiedScope: Map<String, String>,
   ): Boolean {
     var found = false
     val scanner = object : ClassCodeVisitorSupport() {
@@ -381,10 +437,9 @@ class KotlinDataClassCopyMethodASTTransformation : AbstractASTTransformation() {
         if (!isCallOnThis(call)) {
           found = true
         } else {
-          // Even this/super calls need transformation if they match extension functions
-          val methodConstant = call.method as? ConstantExpression
-          val methodName = methodConstant?.value as? String
-          if (methodName != null && methodName in extensionScope) {
+          // Even this/super calls need transformation if they match extension or reified functions
+          val methodName = extractMethodName(call)
+          if (methodName != null && (methodName in extensionScope || methodName in reifiedScope)) {
             found = true
           }
         }
