@@ -31,9 +31,22 @@ You also need Groovy compilation to see Kotlin classes. If your test source set
 has both Kotlin and Groovy, make sure the Groovy compiler's classpath includes
 compiled Kotlin classes:
 
+KGP >= 1.8.20:
 ```kotlin
-tasks.named<GroovyCompile>("compileTestGroovy") {
-  classpath += files(tasks.compileTestKotlin.get().destinationDirectory)
+tasks.compileTestGroovy {
+  classpath = objects.fileCollection().from(
+    classpath,
+    kotlin.sourceSets.test.flatMap { it.kotlin.classesDirectory },
+  )
+}
+```
+KGP < 1.8.20:
+```kotlin
+tasks.compileTestGroovy {
+  classpath = objects.fileCollection().from(
+    classpath,
+    tasks.compileTestKotlin.flatMap { it.destinationDirectory },
+  )
 }
 ```
 
