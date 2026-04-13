@@ -18,5 +18,5 @@ kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 dependencyAnalysis = { id = "com.autonomousapps.dependency-analysis", version = "3.6.1" }
 kotlinter = { id = "org.jmailen.kotlinter", version = "5.4.2" }
 taskTree = { id = "com.dorongold.task-tree", version = "4.0.0" }
-versions = { id = "com.github.ben-manes.versions", version = "0.51.0" }
+versions = { id = "com.github.ben-manes.versions", version = "0.53.0" }
 duplicateClasses = { id = "net.idlestate.gradle-duplicate-classes-check", version = "1.2.0" }
