@@ -6,7 +6,7 @@ ARG work_dir=/home/$username/work
 # This will not get any layer caching if anything in the context has changed, but when we
 # subsequently copy them into a different stage that stage *will* get layer caching. So if none of
 # the *.gradle.kts files have changed, a subsequent command will also get layer caching.
-FROM alpine as gradle-files
+FROM alpine:3@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf as gradle-files
 RUN --mount=type=bind,target=/docker-context \
     mkdir -p /gradle-files/gradle && \
     cd /docker-context/ && \
@@ -18,7 +18,7 @@ RUN --mount=type=bind,target=/docker-context \
     find . -name "*module-info.java" -exec cp --parents "{}" /gradle-files/ \;
 
 
-FROM eclipse-temurin:17.0.9_9-jdk-focal as base_builder
+FROM eclipse-temurin:17-jdk-focal@sha256:5751a59a993d1011047d52df2b56a961a328596d75f6bea23c68b6647490db20 as base_builder
 
 ARG username
 ARG work_dir
